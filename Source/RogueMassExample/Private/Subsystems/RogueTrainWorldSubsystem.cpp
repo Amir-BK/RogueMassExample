@@ -7,6 +7,7 @@
 #include "MassCommonFragments.h"
 #include "MassEntityConfigAsset.h"
 #include "MassEntitySubsystem.h"
+#include "MassRepresentationFragments.h"
 #include "MassSpawnerSubsystem.h"
 #include "Actors/RogueTrainStation.h"
 #include "GameFramework/Actor.h"
@@ -19,6 +20,7 @@ void URogueTrainWorldSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 	Super::Initialize(Collection);
 	
 	InitEntityManagement();
+	InitTemplateConfigs();
 }
 
 void URogueTrainWorldSubsystem::Deinitialize()
@@ -26,13 +28,62 @@ void URogueTrainWorldSubsystem::Deinitialize()
 	PendingSpawns.Reset();
 	EntityPool.Empty();
 	WorldEntities.Empty();
-	Stations.Reset();
+	StationActorData.Reset();
 	TrackSpline = nullptr;
 	EntityManager = nullptr;
 
 	StopSpawnManager();
 
 	Super::Deinitialize();
+}
+
+void URogueTrainWorldSubsystem::InitTemplateConfigs()
+{
+	const auto* Settings = GetDefault<URogueDeveloperSettings>();
+	if (!Settings) return;
+	
+	if (!Settings->StationConfig.IsNull())
+	{
+		StationConfig = Settings->StationConfig.LoadSynchronous();
+	}
+	
+	if (!Settings->TrainEngineConfig.IsNull())
+	{
+		TrainConfig = Settings->TrainEngineConfig.LoadSynchronous(); 
+	}
+	
+	if (!Settings->TrainCarriageConfig.IsNull())
+	{
+		CarriageConfig = Settings->TrainCarriageConfig.LoadSynchronous(); 
+	}
+	
+	if (!Settings->PassengerConfig.IsNull())
+	{
+		PassengerConfig = Settings->PassengerConfig.LoadSynchronous(); 
+	}
+}
+
+void URogueTrainWorldSubsystem::InitConfigTemplates(const UWorld& InWorld)
+{
+	if (StationConfig)
+	{
+		StationTemplate = StationConfig->GetOrCreateEntityTemplate(InWorld);
+	}
+	
+	if (TrainConfig)
+	{
+		TrainTemplate = TrainConfig->GetOrCreateEntityTemplate(InWorld);
+	}
+	
+	if (CarriageConfig)
+	{
+		CarriageTemplate = CarriageConfig->GetOrCreateEntityTemplate(InWorld);
+	}
+	
+	if (PassengerConfig)
+	{
+		PassengerTemplate = PassengerConfig->GetOrCreateEntityTemplate(InWorld);
+	}
 }
 
 void URogueTrainWorldSubsystem::StartSpawnManager()
@@ -53,7 +104,7 @@ void URogueTrainWorldSubsystem::SpawnManager()
 {
 	ProcessPendingSpawns();
 
-	/*UE_LOG(LogTemp, Warning, TEXT("[Stations:%d][Engines:%d][Carriages:%d][Passengers:%d] PendingSpawns:%d"),
+	/*UE_LOG(LogTemp, Warning, TEXT("[StationActorData:%d][Engines:%d][Carriages:%d][Passengers:%d] PendingSpawns:%d"),
 		GetLiveCount(ERogueEntityType::Station),
 		GetLiveCount(ERogueEntityType::TrainEngine),
 		GetLiveCount(ERogueEntityType::TrainCarriage),
@@ -107,7 +158,7 @@ void URogueTrainWorldSubsystem::DiscoverSplineFromSettings()
 
 void URogueTrainWorldSubsystem::GatherStationActors()
 {
-	Stations.Reset();
+	StationActorData.Reset();
 	if (!GetWorld()) return;
 
 	for (TActorIterator<ARogueTrainStation> It(GetWorld()); It; ++It)
@@ -116,49 +167,47 @@ void URogueTrainWorldSubsystem::GatherStationActors()
 		if (!Station) continue;
 
 		FRogueStationData StationData;
-		StationData.Alpha = Station->GetStationT();
+		StationData.Alpha = Station->GetStationAlpha();
 		StationData.WorldPos = Station->GetActorLocation();
-		StationData.WaitingPoints = Station->WaitingPoints;
-		StationData.SpawnPoints   = Station->SpawnPoints;
-		Stations.Add(StationData);
+
+		StationData.WaitingPoints.Reset();
+		StationData.SpawnPoints.Reset();
+
+		const FTransform ToWorld = Station->GetActorTransform();
+		for (const FTransform& LT : Station->WaitingPointWidgets)
+		{
+			StationData.WaitingPoints.Add(ToWorld.TransformPosition(LT.GetLocation()));
+		}
+		
+		for (const FTransform& LT : Station->SpawnPointWidgets)
+		{
+			StationData.SpawnPoints.Add(ToWorld.TransformPosition(LT.GetLocation()));
+		}
+		
+		StationActorData.Add(StationData);
 	}
 
-	Stations.Sort([](const FRogueStationData& L, const FRogueStationData& R){ return L.Alpha < R.Alpha; });
+	StationActorData.Sort([](const FRogueStationData& L, const FRogueStationData& R){ return L.Alpha < R.Alpha; });
 }
 
 void URogueTrainWorldSubsystem::CreateStations()
 {
 	// Check station actors found
-	checkf(Stations.Num() > 0, TEXT("No stations found in world! Place ARogueTrainStation actors to define stations."));
-	
-	// One-time station spawn (authoring actors already placed)
-	const UWorld* World = GetWorld();
-	if (!World) return;
-
-	const auto* Settings = GetDefault<URogueDeveloperSettings>();
-	if (!Settings) return;
-
-	// Setup station entity configuration template
-	if (Settings->StationConfig.IsNull()) return;
-	const UMassEntityConfigAsset* StationCfg = Settings->StationConfig.LoadSynchronous();
-	if (!StationCfg)
-	{
-		UE_LOG(LogTemp, Error, TEXT("StationConfig is not set or failed to load."));
-		return;
-	}
-	const FMassEntityTemplate& StationTemplate = StationCfg->GetOrCreateEntityTemplate(*World);
-	if (!StationTemplate.IsValid()) return;
+	checkf(StationActorData.Num() > 0, TEXT("No stations found in world! Place ARogueTrainStation actors to define stations."));
+		
+	const FMassEntityTemplate* StationEntityTemplate = GetStationTemplate();
+	if (!StationEntityTemplate->IsValid()) return;
 
 	// Create station entities at station actor locations
-	for (int i = 0; i < Stations.Num(); ++i)
+	for (int i = 0; i < StationActorData.Num(); ++i)
 	{
 		FRogueSpawnRequest Request;
 		Request.Type = ERogueEntityType::Station;
-		Request.EntityTemplate = StationTemplate;
+		Request.EntityTemplate = StationEntityTemplate;
 		Request.RemainingCount = 1;
-		Request.SpawnLocation = Stations[i].WorldPos;
-		Request.StationData = Stations[i];
-		Request.StationIndex = i;
+		Request.SpawnLocation = StationActorData[i].WorldPos;
+		Request.StationData = StationActorData[i];
+		Request.StationIdx = i;
 
 		EnqueueSpawns(Request);				
 	}
@@ -166,24 +215,16 @@ void URogueTrainWorldSubsystem::CreateStations()
 
 void URogueTrainWorldSubsystem::CreateTrains()
 {
-	const UWorld* World = GetWorld();
-	if (!World) return;
-
 	const auto* Settings = GetDefault<URogueDeveloperSettings>();
 	if (!Settings) return;
 
-	// Setup train entity configuration templates
-	if (Settings->TrainEngineConfig.IsNull() || Settings->TrainCarriageConfig.IsNull()) return;
-	const UMassEntityConfigAsset* TrainEngineCfg = Settings->TrainEngineConfig.LoadSynchronous();
-	checkf(TrainEngineCfg != nullptr, TEXT("TrainEngineConfig is not set or failed to load."));
-	const UMassEntityConfigAsset* TrainCarriageCfg = Settings->TrainCarriageConfig.LoadSynchronous();
-	checkf(TrainCarriageCfg != nullptr, TEXT("TrainCarriageConfig is not set or failed to load."));
-	const FMassEntityTemplate& TrainEngineTemplate = TrainEngineCfg->GetOrCreateEntityTemplate(*World);	
-	const FMassEntityTemplate& TrainCarriageTemplate = TrainCarriageCfg->GetOrCreateEntityTemplate(*World);
-	if (!TrainEngineTemplate.IsValid() || !TrainCarriageTemplate.IsValid()) return;
-
 	const FRogueTrackSharedFragment& TrackSharedFragment = GetTrackShared();
 	if (!TrackSharedFragment.IsValid()) return;
+
+	// Setup train entity configuration templates
+	const FMassEntityTemplate* TrainEngineTemplate = GetTrainTemplate();	
+	const FMassEntityTemplate* TrainCarriageTemplate = GetCarriageTemplate();
+	if (!TrainEngineTemplate->IsValid() || !TrainCarriageTemplate->IsValid()) return;
 
 	const int32 NumStations = TrackSharedFragment.StationTrackAlphas.Num();
 	if (NumStations <= 0) return;
@@ -220,7 +261,7 @@ void URogueTrainWorldSubsystem::CreateTrains()
 		Request.RemainingCount = 1;
 		Request.SpawnLocation = Sample.Location;
 		Request.StartAlpha = TrainAlpha; 
-		Request.StationIndex = StationIdx;
+		Request.StationIdx = StationIdx;
 
 		TWeakObjectPtr<URogueTrainWorldSubsystem> TrainSubsystemWeak = this;
 		Request.OnSpawned = [TrainAlpha, CarriagesPer, SpacingMeters, CapacityPerCar, TrainCarriageTemplate, TrainSubsystemWeak](const TArray<FMassEntityHandle>& Spawned)
@@ -243,18 +284,18 @@ void URogueTrainWorldSubsystem::CreateTrains()
 				if (!RogueTrainUtility::GetStationSplineSample(TrackSharedFragment, CarriageAlpha, CarriageSample))
 					continue;
 				
-				FRogueSpawnRequest CarReq;
-				CarReq.Type				= ERogueEntityType::TrainCarriage;
-				CarReq.EntityTemplate	= TrainCarriageTemplate;
-				CarReq.RemainingCount	= 1;
-				CarReq.LeadHandle		= LeadHandle;
-				CarReq.CarriageIndex	= c;
-				CarReq.SpacingMeters	= SpacingMeters;
-				CarReq.CarriageCapacity	= CapacityPerCar;
-				CarReq.StartAlpha		= CarriageAlpha;                 // sets FRogueSplineFollowFragment.Alpha on spawn
-				CarReq.SpawnLocation	= CarriageSample.Location;   // optional: if your template has Transform
+				FRogueSpawnRequest CarriageRequest;
+				CarriageRequest.Type			= ERogueEntityType::TrainCarriage;
+				CarriageRequest.EntityTemplate	= TrainCarriageTemplate;
+				CarriageRequest.RemainingCount	= 1;
+				CarriageRequest.LeadHandle		= LeadHandle;
+				CarriageRequest.CarriageIndex	= c;
+				CarriageRequest.SpacingMeters	= SpacingMeters;
+				CarriageRequest.CarriageCapacity= CapacityPerCar;
+				CarriageRequest.StartAlpha		= CarriageAlpha;
+				CarriageRequest.SpawnLocation	= CarriageSample.Location;
 
-				TrainSubsystemLocal->EnqueueSpawns(CarReq);
+				TrainSubsystemLocal->EnqueueSpawns(CarriageRequest);
 			}
 		};
 
@@ -270,26 +311,16 @@ void URogueTrainWorldSubsystem::BuildTrackShared()
 	CachedTrack.StationWorldPositions.Reset();
 	const USplineComponent* Spline = TrackSpline.Get();
 	CachedTrack.TrackLength = Spline ? Spline->GetSplineLength() : 0.f;
-	
-	struct FStationTmp { float Alpha; FVector WorldPos; };
-	TArray<FStationTmp> Tmp;
-	Tmp.Reserve(Stations.Num());
 
-	for (const auto& StationData : Stations)
-	{
-		FStationTmp Entry;
-		Entry.Alpha = RogueTrainUtility::WrapTrackAlpha(StationData.Alpha);
-		Entry.WorldPos = StationData.WorldPos;
-		Tmp.Add(Entry);
-	}
+	PendingStations.Sort([](const auto& A, const auto& B){ return A.Key < B.Key; });
 
-	// Sort ascending by normalized T
-	Tmp.Sort([](const FStationTmp& A, const FStationTmp& B){ return A.Alpha < B.Alpha; });
-	
-	for (int32 i = 0; i < Tmp.Num(); ++i)
+	// Keep track alphas and station entities aligned
+	CachedTrack.StationTrackAlphas.Reserve(PendingStations.Num());
+	CachedTrack.StationEntities.Reserve(PendingStations.Num());
+	for (const auto& Station : PendingStations)
 	{
-		CachedTrack.StationTrackAlphas.Add(Tmp[i].Alpha);
-		CachedTrack.StationWorldPositions.Add(Tmp[i].WorldPos);
+		CachedTrack.StationTrackAlphas.Add(Station.Key);
+		CachedTrack.StationEntities.Add(Station.Value);
 	}
 
 	bTrackDirty = false;
@@ -304,7 +335,7 @@ const FRogueTrackSharedFragment& URogueTrainWorldSubsystem::GetTrackShared()
 
 void URogueTrainWorldSubsystem::EnqueueSpawns(const FRogueSpawnRequest& Request)
 {
-	if (!Request.EntityTemplate.IsValid() || Request.RemainingCount <= 0) return;
+	if (!Request.EntityTemplate->IsValid() || Request.RemainingCount <= 0) return;
 	PendingSpawns.Add(Request);
 }
 
@@ -334,7 +365,7 @@ void URogueTrainWorldSubsystem::ProcessPendingSpawns()
 		{
 			const int32 Need = ThisBatch - Reused;
 			TArray<FMassEntityHandle> Spawned;
-			Spawner->SpawnEntities(Request.EntityTemplate, Need, Spawned);
+			Spawner->SpawnEntities(*Request.EntityTemplate, Need, Spawned);
 			NewEntities.Append(Spawned);
 		}
 
@@ -365,17 +396,17 @@ void URogueTrainWorldSubsystem::ProcessPendingSpawns()
 	}
 }
 
-void URogueTrainWorldSubsystem::EnqueueEntityToPool(const FMassEntityHandle Entity, const ERogueEntityType Type)
+void URogueTrainWorldSubsystem::EnqueueEntityToPool(const FMassEntityHandle Entity, const FMassExecutionContext& Context, const ERogueEntityType Type)
 {
 	if (!EntityManager || !Entity.IsValid()) return;
 
 	UnregisterEntity(Type, Entity);
 
 	// disable LOD (optional)
-	/*if (auto* LOD = EntityManager->GetFragmentDataPtr<FMassRepresentationLODFragment>(Entity))
+	if (auto* LOD = EntityManager->GetFragmentDataPtr<FMassRepresentationLODFragment>(Entity))
 	{
 		LOD->LOD = EMassLOD::Off;
-	}*/
+	}
 	
 	// sink it
 	if (auto* TransformFragment = EntityManager->GetFragmentDataPtr<FTransformFragment>(Entity))
@@ -391,7 +422,7 @@ void URogueTrainWorldSubsystem::EnqueueEntityToPool(const FMassEntityHandle Enti
 	EntityManager->Defer().PushCommand<FMassCommandRemoveTag<FRogueTrainStationTag>>(Entity);*/
 
 	// mark pooled
-	EntityManager->Defer().PushCommand<FMassCommandAddTag<FRoguePooledEntityTag>>(Entity);
+	Context.Defer().PushCommand<FMassCommandAddTag<FRoguePooledEntityTag>>(Entity);
 
 	EntityPool.FindOrAdd(Type).Add(Entity);
 }
@@ -407,23 +438,48 @@ int32 URogueTrainWorldSubsystem::RetrievePooledEntities(const ERogueEntityType T
 		
 		Out.Add(EntityHandle);
 		RegisterEntity(Type, EntityHandle);
+		
+		if (auto* LOD = EntityManager->GetFragmentDataPtr<FMassRepresentationLODFragment>(EntityHandle))
+		{
+			LOD->LOD = EMassLOD::Low;
+		}
 	}
 	
 	return Available;
+}
+
+const FMassEntityTemplate* URogueTrainWorldSubsystem::GetStationTemplate() const
+{
+	return StationTemplate.IsValid() ? &StationTemplate : nullptr;
+}
+
+const FMassEntityTemplate* URogueTrainWorldSubsystem::GetTrainTemplate() const
+{
+	return TrainTemplate.IsValid() ? &TrainTemplate	: nullptr;
+}
+
+const FMassEntityTemplate* URogueTrainWorldSubsystem::GetCarriageTemplate() const
+{
+	return CarriageTemplate.IsValid() ? &CarriageTemplate : nullptr;
+}
+
+const FMassEntityTemplate* URogueTrainWorldSubsystem::GetPassengerTemplate() const
+{
+	return PassengerTemplate.IsValid() ? &PassengerTemplate : nullptr;
 }
 
 void URogueTrainWorldSubsystem::OnWorldBeginPlay(UWorld& InWorld)
 {
 	Super::OnWorldBeginPlay(InWorld);
 
-	StartSpawnManager();	
+	InitConfigTemplates(InWorld);
 	GatherStationActors();
+	StartSpawnManager();	
 	CreateStations();	
 	DiscoverSplineFromSettings();
-	CreateTrains();
 }
 
-void URogueTrainWorldSubsystem::ConfigureSpawnedEntity(const FRogueSpawnRequest& Request, const FMassEntityHandle Entity) const
+void URogueTrainWorldSubsystem::ConfigureSpawnedEntity(const FRogueSpawnRequest& Request, const FMassEntityHandle Entity) 
 {
 	// Position
 	if (FTransformFragment* TransformFragment = EntityManager->GetFragmentDataPtr<FTransformFragment>(Entity))
@@ -435,9 +491,28 @@ void URogueTrainWorldSubsystem::ConfigureSpawnedEntity(const FRogueSpawnRequest&
 	{
 		case ERogueEntityType::Station:
 		{
-			if (auto* Ref = EntityManager->GetFragmentDataPtr<FRogueStationRefFragment>(Entity))
+			StationEntities.AddUnique(Entity);
+			PendingStations.Emplace(Request.StationData.Alpha, Entity);
+
+			// Mark track dirty to rebuild cached data
+			bTrackDirty = true;
+				
+			if (auto* StationFragment = EntityManager->GetFragmentDataPtr<FRogueStationFragment>(Entity))
 			{
-				Ref->StationIndex = Request.StationIndex;
+				StationFragment->StationIndex = Request.StationIdx;
+				StationFragment->StationAlpha = Request.StationData.Alpha;
+				StationFragment->WorldPosition = Request.StationData.WorldPos;
+			}
+				
+			if (auto* QueueFragment = EntityManager->GetFragmentDataPtr<FRogueStationQueueFragment>(Entity))
+			{
+				QueueFragment->SpawnPoints = Request.StationData.SpawnPoints;
+				QueueFragment->WaitingPoints = Request.StationData.WaitingPoints;
+			}
+
+			if (StationEntities.Num() == StationActorData.Num()) // All stations created
+			{					
+				CreateTrains();
 			}
 			break;
 		}
@@ -446,9 +521,9 @@ void URogueTrainWorldSubsystem::ConfigureSpawnedEntity(const FRogueSpawnRequest&
 			if (auto* State = EntityManager->GetFragmentDataPtr<FRogueTrainStateFragment>(Entity))
 			{
 				State->bAtStation = true;
-				State->TargetStationIndex = Request.StationIndex;
-				State->PreviousStationIndex = Request.StationIndex;
-				State->DwellTimeRemaining = 2.f;
+				State->TargetStationIdx = Request.StationIdx;
+				State->PreviousStationIndex = Request.StationIdx;
+				State->StationTimeRemaining = 2.f;
 			}
 				
 			if (auto* Follow = EntityManager->GetFragmentDataPtr<FRogueSplineFollowFragment>(Entity))
@@ -465,40 +540,50 @@ void URogueTrainWorldSubsystem::ConfigureSpawnedEntity(const FRogueSpawnRequest&
 
 				EntityManager->Defer().PushCommand<FMassCommandAddFragmentInstances>(Entity, InitFollow);
 			}
+
+			CarriageCounts.Add(Entity, 0);
+				
 			break;
 		}
 		case ERogueEntityType::TrainCarriage:
 		{
+			const auto* Settings = GetDefault<URogueDeveloperSettings>();
+			if (!Settings) return;
+				
 			if (auto* Link = EntityManager->GetFragmentDataPtr<FRogueTrainLinkFragment>(Entity))
 			{
 				Link->LeadHandle = Request.LeadHandle;
 				Link->CarriageIndex= Request.CarriageIndex;
 				Link->SpacingMeters= Request.SpacingMeters;
 			}
-			if (auto* Cap = EntityManager->GetFragmentDataPtr<FRogueCarriageCapacityFragment>(Entity))
+				
+			if (auto* CarriageFragment = EntityManager->GetFragmentDataPtr<FRogueCarriageFragment>(Entity))
 			{
-				Cap->Capacity = Request.CarriageCapacity;
-				Cap->Occupied = 0;
+				CarriageFragment->Capacity = Request.CarriageCapacity;
+				CarriageFragment->Occupants.Reserve(Request.CarriageCapacity);
 			}
+				
 			if (auto* Follow = EntityManager->GetFragmentDataPtr<FRogueSplineFollowFragment>(Entity))
 			{
 				Follow->Alpha = Request.StartAlpha;
 				Follow->Speed = 0.f;
 			}
+
+			CarriageCounts.FindOrAdd(Request.LeadHandle)++;
+			LeadToCarriages.FindOrAdd(Request.LeadHandle).Add(Entity);
 			break;
 		}
 		case ERogueEntityType::Passenger:
 		{
-			if (auto* Route = EntityManager->GetFragmentDataPtr<FRoguePassengerRouteFragment>(Entity))
+			if (auto* PassengerFragment = EntityManager->GetFragmentDataPtr<FRoguePassengerFragment>(Entity))
 			{
-				Route->OriginStationIndex = Request.OriginStationIndex;
-				Route->DestStationIndex = Request.DestStationIndex;
-				Route->WaitingPointIdx = Request.WaitingPointIdx;
-			}
-				
-			if (auto* SRef = EntityManager->GetFragmentDataPtr<FRogueStationRefFragment>(Entity))
-			{
-				SRef->StationIndex = Request.OriginStationIndex;
+				PassengerFragment->OriginStation = Request.OriginStation;
+				PassengerFragment->DestinationStation = Request.DestinationStation;
+				PassengerFragment->WaitingPointIdx = Request.WaitingPointIdx;
+				PassengerFragment->AcceptanceRadius = Request.AcceptanceRadius;
+				PassengerFragment->MaxSpeed = Request.MaxSpeed;
+				PassengerFragment->Target = Request.SpawnLocation;
+				PassengerFragment->WaitingPointIdx = INDEX_NONE;
 			}
 			break;
 		}

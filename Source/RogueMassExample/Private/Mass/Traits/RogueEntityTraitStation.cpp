@@ -8,6 +8,6 @@
 void URogueEntityTraitStation::BuildTemplate(FMassEntityTemplateBuildContext& BuildContext, const UWorld& World) const
 {
 	BuildContext.AddTag<FRogueTrainStationTag>();
-	BuildContext.AddFragment<FRogueStationRefFragment>();
+	BuildContext.AddFragment<FRogueStationFragment>();
 	BuildContext.AddFragment<FRogueStationQueueFragment>();
 }

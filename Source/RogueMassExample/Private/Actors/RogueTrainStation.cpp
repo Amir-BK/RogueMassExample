@@ -14,11 +14,11 @@ ARogueTrainStation::ARogueTrainStation()
 void ARogueTrainStation::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
-	ComputeStationT();
+	ComputeStationAlpha();
 }
 #endif
 
-void ARogueTrainStation::ComputeStationT()
+void ARogueTrainStation::ComputeStationAlpha()
 {
 	if (!GetWorld()) return;
 	const auto* Settings = GetDefault<URogueDeveloperSettings>();
@@ -32,5 +32,5 @@ void ARogueTrainStation::ComputeStationT()
 	const FVector Platform = GetActorLocation();
 	const float RealDist = Spline->GetDistanceAlongSplineAtLocation(Platform, ESplineCoordinateSpace::World);
 	const float Len = FMath::Max(1.f, Spline->GetSplineLength());
-	StationT = RealDist / Len;
+	StationAlpha = RealDist / Len;
 }

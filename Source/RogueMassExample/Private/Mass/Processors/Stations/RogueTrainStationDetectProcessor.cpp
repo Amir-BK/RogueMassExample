@@ -49,14 +49,14 @@ void URogueTrainStationDetectProcessor::Execute(FMassEntityManager& EntityManage
 			const auto& Follow = FollowView[i];
 			auto& State = StateView[i];
 
-			if (State.TargetStationIndex == INDEX_NONE)
+			if (State.TargetStationIdx == INDEX_NONE)
 			{
-				State.TargetStationIndex = RogueTrainUtility::FindNextStation(TrackSharedFragment.StationTrackAlphas, Follow.Alpha);
+				State.TargetStationIdx = RogueTrainUtility::FindNextStation(TrackSharedFragment.StationTrackAlphas, Follow.Alpha);
 				State.PrevAlpha = Follow.Alpha;
 				continue; // next tick we’ll evaluate distance
 			}
 
-			const float StationTrackAlpha = TrackSharedFragment.StationTrackAlphas[State.TargetStationIndex];
+			const float StationTrackAlpha = TrackSharedFragment.StationTrackAlphas[State.TargetStationIdx];
 			const float Arc = RogueTrainUtility::ArcDistanceWrapped(Follow.Alpha, StationTrackAlpha);
 			const float Dist = Arc * TrackSharedFragment.TrackLength;
 			const float DeltaTime = SubContext.GetDeltaTimeSeconds();
@@ -70,35 +70,23 @@ void URogueTrainStationDetectProcessor::Execute(FMassEntityManager& EntityManage
 				if (Dist <= ArriveRadius)
 				{
 					State.bAtStation = true;
-					State.DwellTimeRemaining = Settings ? Settings->MaxDwellTimeSeconds : 2.f;
+					State.StationTimeRemaining = Settings ? Settings->MaxDwellTimeSeconds : 2.f;
 				}
 			}
 			else
 			{
 				// Dwell countdown
 				State.bIsStopping = true; // keep slowed/stopped while dwelling
-				State.DwellTimeRemaining -= DeltaTime;
-				if (State.DwellTimeRemaining <= 0.f)
+				State.StationTimeRemaining -= DeltaTime;
+				if (State.StationTimeRemaining <= 0.f)
 				{
 					// Depart now: retarget to NEXT station and leave
 					State.bAtStation = false;
+					State.StationTrainPhase = ERogueStationTrainPhase::NotStopped;
 					State.bIsStopping = false;
-					State.PreviousStationIndex = State.TargetStationIndex;
-					State.TargetStationIndex = (State.TargetStationIndex + 1) % TrackSharedFragment.StationTrackAlphas.Num();
+					State.PreviousStationIndex = State.TargetStationIdx;
+					State.TargetStationIdx = (State.TargetStationIdx + 1) % TrackSharedFragment.StationTrackAlphas.Num();
 				}
-			}
-
-			if (i == 0)
-			{
-				UE_LOG(LogTemp, Warning, TEXT("Alpha=%.5f Prev=%d Target=%d T=%.5f dist=%.1f stop=%d at=%d StaCount=%d"),
-					Follow.Alpha,
-					State.PreviousStationIndex,
-					State.TargetStationIndex,
-					TrackSharedFragment.StationTrackAlphas[State.TargetStationIndex],
-					RogueTrainUtility::ArcDistanceWrapped(Follow.Alpha, TrackSharedFragment.StationTrackAlphas[State.TargetStationIndex]) * TrackSharedFragment.TrackLength,
-					State.bIsStopping,
-					State.bAtStation,
-					TrackSharedFragment.StationTrackAlphas.Num());
 			}
 		}
 	});	

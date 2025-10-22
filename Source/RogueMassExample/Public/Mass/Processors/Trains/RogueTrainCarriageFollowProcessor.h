@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "MassProcessor.h"
-#include "Mass/Fragments/RogueFragments.h"
 #include "RogueTrainCarriageFollowProcessor.generated.h"
 
 /**
@@ -22,7 +21,4 @@ protected:
 	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
 
 	FMassEntityQuery EntityQuery;
-
-private:
-	static const FRogueSplineFollowFragment* GetLeadFollow(const FMassEntityView& View, const FRogueTrainLinkFragment& Link);
 };

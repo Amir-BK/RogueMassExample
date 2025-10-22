@@ -6,6 +6,8 @@
 #include "MassProcessor.h"
 #include "RoguePassengerSpawnProcessor.generated.h"
 
+class UMassEntityConfigAsset;
+struct FMassEntityTemplate;
 /**
  * 
  */
@@ -13,6 +15,7 @@ UCLASS()
 class ROGUEMASSEXAMPLE_API URoguePassengerSpawnProcessor : public UMassProcessor
 {
 	GENERATED_BODY()
+	
 public:
 	URoguePassengerSpawnProcessor();
 	

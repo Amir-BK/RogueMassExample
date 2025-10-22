@@ -4,24 +4,22 @@
 
 #include "CoreMinimal.h"
 #include "MassProcessor.h"
-#include "MassEntitySubsystem.h"
-#include "RogueTrainCreatorProcessor.generated.h"
+#include "RoguePassengerHeightProcessor.generated.h"
 
 /**
  * 
  */
 UCLASS()
-class ROGUEMASSEXAMPLE_API URogueTrainCreatorProcessor : public UMassProcessor
+class ROGUEMASSEXAMPLE_API URoguePassengerHeightProcessor : public UMassProcessor
 {
 	GENERATED_BODY()
 	
 public:
-	URogueTrainCreatorProcessor();
+	URoguePassengerHeightProcessor();
 	
 protected:
+	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
 	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
 
-private:
-	UPROPERTY(Transient)
-	bool bCreated = false;
+	FMassEntityQuery EntityQuery;
 };

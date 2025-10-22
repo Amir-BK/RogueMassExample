@@ -8,6 +8,7 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "RogueTrainWorldSubsystem.generated.h"
 
+class UMassEntityConfigAsset;
 class USplineComponent;
 
 UENUM()
@@ -23,10 +24,12 @@ USTRUCT()
 struct ROGUEMASSEXAMPLE_API FRogueStationData
 {
 	GENERATED_BODY()
-	UPROPERTY() float Alpha = 0.f;
-	UPROPERTY() FVector WorldPos = FVector::ZeroVector;
-	UPROPERTY() TArray<FVector> WaitingPoints;
-	UPROPERTY() TArray<FVector> SpawnPoints;
+	
+	float Alpha = 0.f;
+	FVector WorldPos = FVector::ZeroVector;
+	TArray<FVector> WaitingPoints;
+	TArray<FVector> SpawnPoints;
+	FMassEntityHandle StationHandle = FMassEntityHandle();
 };
 
 USTRUCT()
@@ -34,28 +37,30 @@ struct ROGUEMASSEXAMPLE_API FRogueSpawnRequest
 {
 	GENERATED_BODY()
 
-	UPROPERTY() ERogueEntityType Type = ERogueEntityType::Passenger;
-	FMassEntityTemplate EntityTemplate = FMassEntityTemplate();
-	UPROPERTY() int32 RemainingCount = 0;
+	ERogueEntityType Type = ERogueEntityType::Passenger;
+	const FMassEntityTemplate* EntityTemplate = nullptr;
+	int32 RemainingCount = 0;
 
 	// Any
-	UPROPERTY() FVector SpawnLocation = FVector::ZeroVector;
-	UPROPERTY() float StartAlpha = 0.f; 
+	FVector SpawnLocation = FVector::ZeroVector;
+	float StartAlpha = 0.f; 
 
 	// Station
-	UPROPERTY() int32 StationIndex = INDEX_NONE;
-	UPROPERTY() FRogueStationData StationData;
+	FRogueStationData StationData;
+	int32 StationIdx = INDEX_NONE;
 
 	// Carriage
-	UPROPERTY() FMassEntityHandle LeadHandle; 
-	UPROPERTY() int32 CarriageIndex = 1;      
-	UPROPERTY() float SpacingMeters = 8.f;                  
-	UPROPERTY() int32 CarriageCapacity = 20;                 
+	FMassEntityHandle LeadHandle; 
+	int32 CarriageIndex = 1;      
+	float SpacingMeters = 8.f;                  
+	int32 CarriageCapacity = 20;                 
 
 	// Passenger
-	UPROPERTY() int32 OriginStationIndex = INDEX_NONE;       
-	UPROPERTY() int32 DestStationIndex = INDEX_NONE;		 
-	UPROPERTY() int32 WaitingPointIdx = INDEX_NONE;
+	FMassEntityHandle OriginStation = FMassEntityHandle();       
+	FMassEntityHandle DestinationStation = FMassEntityHandle();
+	int32 WaitingPointIdx = INDEX_NONE;
+	float AcceptanceRadius = 20.f;
+	float MaxSpeed = 200.f;
 
 	// Completion callback
 	TFunction<void(const TArray<FMassEntityHandle>& /*Spawned*/)> OnSpawned = nullptr;
@@ -74,7 +79,7 @@ public:
 	virtual void Deinitialize() override;
 
 	USplineComponent* GetSpline() const { return TrackSpline.Get(); }
-	const TArray<FRogueStationData>& GetStations() const { return Stations; }
+	const TArray<FRogueStationData>& GetStations() const { return StationActorData; }
 
 	// Build shared track fragment
 	void BuildTrackShared();
@@ -85,26 +90,45 @@ public:
 	// Queue a spawn using the template you created from Dev Settings
 	void EnqueueSpawns(const FRogueSpawnRequest& Request);
 
-	// Drive this per-frame (e.g., from a simple “driver” processor or your GameMode tick)
-	void ProcessPendingSpawns();
-
 	// Pooling (generic)
-	void EnqueueEntityToPool(const FMassEntityHandle Entity, const ERogueEntityType Type);
+	void EnqueueEntityToPool(const FMassEntityHandle Entity, const FMassExecutionContext& Context, const ERogueEntityType Type);
 	int32 RetrievePooledEntities(const ERogueEntityType Type, const int32 Count, TArray<FMassEntityHandle>& Out);
+
+	// Template accessors
+	const FMassEntityTemplate* GetStationTemplate() const;
+	const FMassEntityTemplate* GetTrainTemplate() const;
+	const FMassEntityTemplate* GetCarriageTemplate() const;
+	const FMassEntityTemplate* GetPassengerTemplate() const; 
+	
+	TMap<FMassEntityHandle, int32> CarriageCounts;
+	TMap<FMassEntityHandle, TArray<FMassEntityHandle>> LeadToCarriages;
 
 protected:
 	virtual void OnWorldBeginPlay(UWorld& InWorld) override;
+	void ProcessPendingSpawns();
 
 private:
 	UPROPERTY() TWeakObjectPtr<USplineComponent> TrackSpline;
-	UPROPERTY() TArray<FRogueStationData> Stations;
+	UPROPERTY() TArray<FRogueStationData> StationActorData;
+	UPROPERTY() TArray<FMassEntityHandle> StationEntities;
 	UPROPERTY() TArray<FRogueSpawnRequest> PendingSpawns;
 	UPROPERTY() FRogueTrackSharedFragment CachedTrack;   // cached once, reused everywhere
 	UPROPERTY() int32 TrackRevision = 0;
 	UPROPERTY() bool bTrackDirty = true;
 	TMap<ERogueEntityType, TArray<FMassEntityHandle>> EntityPool;
 	TMap<ERogueEntityType, TArray<FMassEntityHandle>> WorldEntities;
+	TArray<TPair<float, FMassEntityHandle>> PendingStations;
+	UPROPERTY() UMassEntityConfigAsset* StationConfig = nullptr;
+	UPROPERTY() UMassEntityConfigAsset* TrainConfig = nullptr;
+	UPROPERTY() UMassEntityConfigAsset* CarriageConfig = nullptr;
+	UPROPERTY() UMassEntityConfigAsset* PassengerConfig = nullptr;
+	FMassEntityTemplate StationTemplate;  
+	FMassEntityTemplate TrainTemplate;  
+	FMassEntityTemplate CarriageTemplate;  
+	FMassEntityTemplate PassengerTemplate;  
 
+	void InitTemplateConfigs();
+	void InitConfigTemplates(const UWorld& InWorld);
 	void StartSpawnManager();
 	void SpawnManager();
 	void StopSpawnManager();
@@ -118,7 +142,7 @@ private:
 	FMassEntityManager* EntityManager = nullptr;
 
 	// Helpers
-	void ConfigureSpawnedEntity(const FRogueSpawnRequest& Request, const FMassEntityHandle Entity) const;
+	void ConfigureSpawnedEntity(const FRogueSpawnRequest& Request, const FMassEntityHandle Entity);
 	void RegisterEntity(const ERogueEntityType Type, const FMassEntityHandle Entity);
 	void UnregisterEntity(const ERogueEntityType Type, const FMassEntityHandle Entity);
 	

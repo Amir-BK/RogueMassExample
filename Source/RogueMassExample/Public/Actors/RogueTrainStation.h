@@ -14,14 +14,14 @@ class ROGUEMASSEXAMPLE_API ARogueTrainStation : public AActor
 public:
 	ARogueTrainStation();
 
-	UPROPERTY(EditAnywhere, Category="Station")
-	TArray<FVector> WaitingPoints;
+	UPROPERTY(EditAnywhere, Category="Station", meta=(MakeEditWidget))
+	TArray<FTransform> WaitingPointWidgets;
 
-	UPROPERTY(EditAnywhere, Category="Station")
-	TArray<FVector> SpawnPoints;
+	UPROPERTY(EditAnywhere, Category="Station", meta=(MakeEditWidget))
+	TArray<FTransform> SpawnPointWidgets;
 
 	UFUNCTION(BlueprintCallable, Category="Station")
-	float GetStationT() const { return StationT; }
+	float GetStationAlpha() const { return StationAlpha; }
 
 #if WITH_EDITOR
 	virtual void OnConstruction(const FTransform& Transform) override;
@@ -29,6 +29,6 @@ public:
 
 private:
 	UPROPERTY(EditAnywhere, Category="Station")
-	float StationT = 0.f; // computed against world track spline, but editable for manual authoring
-	void ComputeStationT();
+	float StationAlpha = 0.f; 
+	void ComputeStationAlpha();
 };

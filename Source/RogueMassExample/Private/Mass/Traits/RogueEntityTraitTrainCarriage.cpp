@@ -11,5 +11,5 @@ void URogueEntityTraitTrainCarriage::BuildTemplate(FMassEntityTemplateBuildConte
 	BuildContext.AddTag<FRogueTrainCarriageTag>();
 	BuildContext.AddFragment<FRogueSplineFollowFragment>();
 	BuildContext.AddFragment<FRogueTrainLinkFragment>();
-	BuildContext.AddFragment<FRogueCarriageCapacityFragment>();
+	BuildContext.AddFragment<FRogueCarriageFragment>();
 }

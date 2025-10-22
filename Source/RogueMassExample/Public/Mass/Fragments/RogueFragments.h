@@ -19,13 +19,32 @@ USTRUCT() struct ROGUEMASSEXAMPLE_API FRogueTrainDoorsOpenTag : public FMassTag 
 USTRUCT() struct ROGUEMASSEXAMPLE_API FRogueTrainReadyDepartTag : public FMassTag { GENERATED_BODY() };
 
 USTRUCT() struct ROGUEMASSEXAMPLE_API FRoguePassengerWaitingTag : public FMassTag { GENERATED_BODY() };
-USTRUCT() struct ROGUEMASSEXAMPLE_API FRoguePassengerBoardingTag : public FMassTag { GENERATED_BODY() };
-USTRUCT() struct ROGUEMASSEXAMPLE_API FRoguePassengerRidingTag : public FMassTag { GENERATED_BODY() };
-USTRUCT() struct ROGUEMASSEXAMPLE_API FRoguePassengerAlightingTag: public FMassTag { GENERATED_BODY() };
+USTRUCT() struct ROGUEMASSEXAMPLE_API FRoguePassengerOnTrainTag : public FMassTag { GENERATED_BODY() };
 USTRUCT() struct ROGUEMASSEXAMPLE_API FRoguePassengerDespawnTag : public FMassTag { GENERATED_BODY() };
-USTRUCT() struct ROGUEMASSEXAMPLE_API FRogueInPoolTag : public FMassTag { GENERATED_BODY() };
+
 USTRUCT() struct ROGUEMASSEXAMPLE_API FRoguePooledEntityTag : public FMassTag { GENERATED_BODY() };
 
+UENUM()
+enum class ERoguePassengerPhase : uint8
+{
+	ToStationWaitingPoint,		// 1) spawn -> nearest station waiting point
+	ToAssignedCarriage,					// 2) waiting -> carriage
+	RideOnTrain,						// 
+	UnloadAtStation,					// 
+	ToPostUnloadWaitingPoint,			// 4) after unload -> nearest waiting point (brief settle)
+	ToExitSpawn,						// 5) waiting -> nearest station spawn
+	Pool								// 6) ready to destroy/return to pool
+};
+
+UENUM()
+enum class ERogueStationTrainPhase : uint8
+{
+	NotStopped,
+	Arriving,
+	Unloading,
+	Loading,
+	Departing,
+};
 
 USTRUCT()
 struct ROGUEMASSEXAMPLE_API FRogueSplineFollowFragment : public FMassFragment
@@ -39,11 +58,13 @@ struct ROGUEMASSEXAMPLE_API FRogueSplineFollowFragment : public FMassFragment
 };
 
 USTRUCT()
-struct ROGUEMASSEXAMPLE_API FRogueStationRefFragment : public FMassFragment
+struct ROGUEMASSEXAMPLE_API FRogueStationFragment : public FMassFragment
 {
 	GENERATED_BODY()
 	
-	int32 StationIndex = INDEX_NONE; // for stations/self; for passengers current/nearest
+	int32 StationIndex = INDEX_NONE;
+	float StationAlpha = 0.f; // [0..1] along track
+	FVector WorldPosition = FVector::ZeroVector;
 };
 
 USTRUCT()
@@ -53,10 +74,13 @@ struct ROGUEMASSEXAMPLE_API FRogueTrainStateFragment : public FMassFragment
 	
 	bool bIsStopping = false;
 	bool bAtStation = false;
-	float DwellTimer = 0.f;
-	float DwellTimeRemaining = 0.f;  
+	bool bHasArrived = false;
+	ERogueStationTrainPhase StationTrainPhase = ERogueStationTrainPhase::NotStopped;
+	float HeadwaySpeedScale = 1.f;
+	float StationTimeRemaining = 0.f;  
 	float PrevAlpha = 0.f;  
-	int32 TargetStationIndex = INDEX_NONE;
+	FMassEntityHandle TargetStation = FMassEntityHandle();
+	int32 TargetStationIdx = INDEX_NONE;
 	int32 PreviousStationIndex = INDEX_NONE;
 };
 
@@ -71,23 +95,29 @@ struct ROGUEMASSEXAMPLE_API FRogueTrainLinkFragment : public FMassFragment
 };
 
 USTRUCT()
-struct ROGUEMASSEXAMPLE_API FRogueCarriageCapacityFragment : public FMassFragment
+struct ROGUEMASSEXAMPLE_API FRogueCarriageFragment : public FMassFragment
 {
 	GENERATED_BODY()
 	
-	int32 Capacity = 0;
-	int32 Occupied = 0;
+	int32 Capacity = 100;
+	TArray<FMassEntityHandle> Occupants;
 };
 
 USTRUCT()
-struct ROGUEMASSEXAMPLE_API FRoguePassengerRouteFragment : public FMassFragment
+struct ROGUEMASSEXAMPLE_API FRoguePassengerFragment : public FMassFragment
 {
 	GENERATED_BODY()
 	
-	int32 OriginStationIndex = INDEX_NONE;
-	int32 DestStationIndex   = INDEX_NONE;
-	int32 WaitingPointIdx    = INDEX_NONE;
-	int32 CarriageIndex      = INDEX_NONE; // chosen door/carriage
+	FMassEntityHandle OriginStation = FMassEntityHandle();       
+	FMassEntityHandle DestinationStation = FMassEntityHandle();
+	int32 WaitingPointIdx = INDEX_NONE;
+	int32 CarriageIndex = INDEX_NONE;
+	FMassEntityHandle VehicleHandle;
+	ERoguePassengerPhase Phase = ERoguePassengerPhase::ToStationWaitingPoint;
+	FVector Target = FVector::ZeroVector;
+	float AcceptanceRadius = 20.f;
+	float MaxSpeed = 200.f;
+	bool bWaiting = false;
 };
 
 USTRUCT()
@@ -103,23 +133,18 @@ struct ROGUEMASSEXAMPLE_API FRoguePassengerQueueEntry
 {
 	GENERATED_BODY()
 
-	// Required
 	FMassEntityHandle Passenger = FMassEntityHandle();
-
-	// Useful metadata
-	int32 DestStationIndex = INDEX_NONE;
-	int32 WaitingPointIdx  = INDEX_NONE;
-
-	// Nice-to-have for fairness/metrics
-	float EnqueuedGameTime = 0.f;   // UWorld->GetTimeSeconds()
-	int32 Priority         = 0;     // 0=normal, higher = board first
+	FMassEntityHandle DestStation = FMassEntityHandle();
+	int32 WaitingPointIdx = INDEX_NONE;
+	float EnqueuedGameTime = 0.f;
+	int32 Priority = 0;
 };
 
 USTRUCT()
 struct ROGUEMASSEXAMPLE_API FRogueStationQueueFragment : public FMassFragment
 {
 	GENERATED_BODY()
-	TArray<FRoguePassengerQueueEntry> Queue; 
+	TMap<int32, TArray<FRoguePassengerQueueEntry>> QueuesByWP;
 	TArray<FVector> WaitingPoints;
 	TArray<FVector> SpawnPoints;   
 };
@@ -132,10 +157,15 @@ struct ROGUEMASSEXAMPLE_API FRogueTrackSharedFragment : public FMassSharedFragme
 	
 	TWeakObjectPtr<USplineComponent> Spline;
 	TArray<float> StationTrackAlphas; // sorted [0..1]
+	TArray<FMassEntityHandle> StationEntities;
 	TArray<FVector> StationWorldPositions;
 	float TrackLength = 100000.f;  
 
-	bool IsValid() const { return Spline.IsValid() && TrackLength > 0.f && StationTrackAlphas.Num() >= 2; }
+	FORCEINLINE bool IsValid() const { return Spline.IsValid() && TrackLength > 0.f && StationTrackAlphas.Num() >= 2; }
+	FORCEINLINE FMassEntityHandle GetStationEntityByIndex(const int32 Index) const
+	{
+		return StationEntities.IsValidIndex(Index) ? StationEntities[Index] : FMassEntityHandle();
+	}
 };
 
 USTRUCT()

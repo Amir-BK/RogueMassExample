@@ -4,23 +4,22 @@
 
 #include "CoreMinimal.h"
 #include "MassProcessor.h"
-#include "RogueTrainStationCreatorProcessor.generated.h"
+#include "RogueTrainHeadwayProcessor.generated.h"
 
 /**
  * 
  */
 UCLASS()
-class ROGUEMASSEXAMPLE_API URogueTrainStationCreatorProcessor : public UMassProcessor
+class ROGUEMASSEXAMPLE_API URogueTrainHeadwayProcessor : public UMassProcessor
 {
 	GENERATED_BODY()
-	
+
 public:
-	URogueTrainStationCreatorProcessor();
+	URogueTrainHeadwayProcessor();
 	
 protected:
+	virtual void ConfigureQueries(const TSharedRef<FMassEntityManager>& EntityManager) override;
 	virtual void Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context) override;
 
-private:	
-	UPROPERTY(Transient)
-	bool bCreated = false;
+	FMassEntityQuery EntityQuery;
 };

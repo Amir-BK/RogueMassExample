@@ -37,6 +37,7 @@ void URogueTrainEngineMovementProcessor::Execute(FMassEntityManager& EntityManag
 	const auto* Settings = GetDefault<URogueDeveloperSettings>();
 	if (!Settings) return;
 
+
 	EntityQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& SubContext)
 	{
 		const auto FollowView = SubContext.GetMutableFragmentView<FRogueSplineFollowFragment>();
@@ -48,24 +49,17 @@ void URogueTrainEngineMovementProcessor::Execute(FMassEntityManager& EntityManag
 			auto& Follow = FollowView[i];
 			const auto& State  = StateView[i];
 
-			const float TargetSpeed = State.bIsStopping ? Settings->StationApproachSpeed : Settings->LeadCruiseSpeed;
-
-			if (!State.bAtStation)
-			{
-				Follow.Speed = TargetSpeed;
-				const float DeltaTime = (Follow.Speed * SubContext.GetDeltaTimeSeconds()) / TrackSharedFragment.TrackLength;
-				Follow.Alpha = RogueTrainUtility::WrapTrackAlpha(Follow.Alpha + DeltaTime);
-			}
-			else
-			{
-				Follow.Speed = 0.f;
-			}
+			float TargetSpeed = State.bIsStopping ? Settings->StationApproachSpeed : Settings->LeadCruiseSpeed;
+			TargetSpeed *= State.bAtStation ? 0.f : FMath::Clamp(State.HeadwaySpeedScale, 0.f, 1.f);
+			
+			Follow.Speed = TargetSpeed;
+			Follow.Alpha = RogueTrainUtility::WrapTrackAlpha(Follow.Alpha + (Follow.Speed * SubContext.GetDeltaTimeSeconds()) / TrackSharedFragment.TrackLength );
 
 			RogueTrainUtility::SampleSpline(TrackSharedFragment, Follow.Alpha, Follow.WorldPos, Follow.WorldFwd);
 			
 			// Build an orientation (forward = tangent, up = world up or spline up if you have it)
 			const FVector Fwd = Follow.WorldFwd.GetSafeNormal();
-			const FQuat Rot = FRotationMatrix::MakeFromXZ(Fwd, FVector::UpVector).ToQuat(); // could add TrackSharedFragment.Up track up etc
+			const FQuat Rot = FRotationMatrix::MakeFromXZ(Fwd, FVector::UpVector).ToQuat();
 
 			// Write to the transform fragment
 			FTransform& TrainTransform = TransformView[i].GetMutableTransform();
