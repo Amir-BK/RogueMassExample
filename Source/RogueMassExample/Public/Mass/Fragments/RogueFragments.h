@@ -27,7 +27,8 @@ USTRUCT() struct ROGUEMASSEXAMPLE_API FRoguePooledEntityTag : public FMassTag { 
 UENUM()
 enum class ERoguePassengerPhase : uint8
 {
-	ToStationWaitingPoint,		// 1) spawn -> nearest station waiting point
+	EnteredWorld,						// 0) just spawned
+	ToStationWaitingPoint,				// 1) spawn -> nearest station waiting point
 	ToAssignedCarriage,					// 2) waiting -> carriage
 	RideOnTrain,						// 
 	UnloadAtStation,					// 
@@ -126,9 +127,6 @@ struct FRogueWaitingGrid
 
 	/** Who is in each slot, or invalid if free */
 	TArray<FMassEntityHandle> OccupiedBy;
-
-	/** Optional free-list for O(1) allocate/free (otherwise scan OccupiedBy) */
-	TArray<int32> FreeIndices;
 
 	FORCEINLINE bool IsValidSlotIndex(const int32 Idx) const { return SlotPositions.IsValidIndex(Idx); }
 };

@@ -167,27 +167,27 @@ public:
 
 #if WITH_EDITOR
 public:	
-	const TArray<FRogueDebugPassenger>& GetPassengerDebugSnapshot() { return PassengersDebugSnapshot; }
-	int32 GetPassengerDebugSlot() { return NextPassengerDebugSlot++; }
-	int32 GetPassengerDebugCapacity() const { return NextPassengerDebugSlot; }
-	void SetPassengerDebugSnapshot(TArray<FRogueDebugPassenger>&& Snapshot) { PassengersDebugSnapshot = MoveTemp(Snapshot); }
+	FORCEINLINE const TArray<FRogueDebugPassenger>& GetPassengerDebugSnapshot() { return PassengersDebugSnapshot; }
+	FORCEINLINE int32 GetPassengerDebugSlot() { return NextPassengerDebugSlot++; }
+	FORCEINLINE int32 GetPassengerDebugCapacity() const { return NextPassengerDebugSlot; }
+	FORCEINLINE void SetPassengerDebugSnapshot(TArray<FRogueDebugPassenger>&& Snapshot) { PassengersDebugSnapshot.Reset(); PassengersDebugSnapshot = MoveTemp(Snapshot); }
 	
-	const TArray<FRogueDebugTrain>& GetTrainDebugSnapshot() { return TrainsDebugSnapshot; }
-	int32 GetTrainDebugIndex() { return NextTrainDebugSlot++; }
-	int32 GetTrainDebugCapacity() const { return NextTrainDebugSlot; }
-	void SetTrainDebugSnapshot(TArray<FRogueDebugTrain>&& Snapshot) { TrainsDebugSnapshot = MoveTemp(Snapshot); }
+	FORCEINLINE const TArray<FRogueDebugTrain>& GetTrainDebugSnapshot() { return TrainsDebugSnapshot; }
+	FORCEINLINE int32 GetTrainDebugIndex() { return NextTrainDebugSlot++; }
+	FORCEINLINE int32 GetTrainDebugCapacity() const { return NextTrainDebugSlot; }
+	FORCEINLINE void SetTrainDebugSnapshot(TArray<FRogueDebugTrain>&& Snapshot) { TrainsDebugSnapshot.Reset(); TrainsDebugSnapshot = MoveTemp(Snapshot); }
 	
-	const TArray<FRogueDebugCarriage>& GetCarriageDebugSnapshot() { return CarriagesDebugSnapshot; }
-	int32 GetCarriageDebugIndex() { return NextCarriageDebugSlot++; }
-	int32 GetCarriageDebugCapacity() const { return NextCarriageDebugSlot; }
-	void SetCarriageDebugSnapshot(TArray<FRogueDebugCarriage>&& Snapshot) { CarriagesDebugSnapshot = MoveTemp(Snapshot); }
+	FORCEINLINE const TArray<FRogueDebugCarriage>& GetCarriageDebugSnapshot() { return CarriagesDebugSnapshot; }
+	FORCEINLINE int32 GetCarriageDebugIndex() { return NextCarriageDebugSlot++; }
+	FORCEINLINE int32 GetCarriageDebugCapacity() const { return NextCarriageDebugSlot; }
+	FORCEINLINE void SetCarriageDebugSnapshot(TArray<FRogueDebugCarriage>&& Snapshot) { CarriagesDebugSnapshot.Reset(); CarriagesDebugSnapshot = MoveTemp(Snapshot); }
 	
-	const TArray<FRogueDebugStation>& GetStationDebugSnapshot() { return StationsDebugSnapshot; }
-	int32 GetStationDebugIndex() { return NextStationDebugSlot++; }
-	int32 GetStationDebugCapacity() const { return NextStationDebugSlot; }
-	void SetStationDebugSnapshot(TArray<FRogueDebugStation>&& Snapshot) { StationsDebugSnapshot = MoveTemp(Snapshot); }
+	FORCEINLINE const TArray<FRogueDebugStation>& GetStationDebugSnapshot() { return StationsDebugSnapshot; }
+	FORCEINLINE int32 GetStationDebugIndex() { return NextStationDebugSlot++; }
+	FORCEINLINE int32 GetStationDebugCapacity() const { return NextStationDebugSlot; }
+	FORCEINLINE void SetStationDebugSnapshot(TArray<FRogueDebugStation>&& Snapshot) { StationsDebugSnapshot.Reset(); StationsDebugSnapshot = MoveTemp(Snapshot); }
 
-	const TArray<FRogueDebugTrack>& GetTrackDebugSnapshot() { return TracksDebugSnapshot; }
+	FORCEINLINE const TArray<FRogueDebugTrack>& GetTrackDebugSnapshot() { return TracksDebugSnapshot; }
 	//const USplineComponent& GetTrackEntities() const;
 
 	

@@ -137,7 +137,7 @@ void FRogueAIDebugCategory::GetPassengerEntityOverheadInfo(const FRogueDebugPass
 void FRogueAIDebugCategory::GetTrainEntityOverheadInfo(const FRogueDebugTrain& DebugTrain, FGameplayDebuggerEntityOverheadTiles& Info)
 {
 	FGameplayDebuggerEntityOverheadCategory& MovementCategory = Info.Category("Movement Info");
-	MovementCategory.Add("Alpha", FString::Printf(TEXT("%.0f"), DebugTrain.Alpha)); 
+	MovementCategory.Add("Alpha", FString::Printf(TEXT("%.2f"), DebugTrain.Alpha)); 
 	MovementCategory.Add("Speed", FString::Printf(TEXT("%.0f"), DebugTrain.Speed));
 	MovementCategory.Add("TargetStation", FString::FromInt(DebugTrain.TargetStationIdx)); 
 	
@@ -157,7 +157,7 @@ void FRogueAIDebugCategory::GetCarriageEntityOverheadInfo(const FRogueDebugCarri
 	CarriageCategory.Add("Spacing", FString::Printf(TEXT("%.0f"), DebugCarriage.Spacing));
 
 	FGameplayDebuggerEntityOverheadCategory& MovementCategory = Info.Category("Movement Info");
-	MovementCategory.Add("Alpha", FString::Printf(TEXT("%.0f"), DebugCarriage.Alpha)); 
+	MovementCategory.Add("Alpha", FString::Printf(TEXT("%.2f"), DebugCarriage.Alpha)); 
 	MovementCategory.Add("Speed", FString::Printf(TEXT("%.0f"), DebugCarriage.Speed));
 }
 
@@ -165,7 +165,7 @@ void FRogueAIDebugCategory::GetStationEntityOverheadInfo(const FRogueDebugStatio
 {
 	FGameplayDebuggerEntityOverheadCategory& StationCategory = Info.Category("Station Info");	
 	StationCategory.Add("Index", FString::FromInt(DebugStation.StationIdx)); 	
-	StationCategory.Add("Alpha", FString::Printf(TEXT("%.0f"), DebugStation.TrackAlpha)); 
+	StationCategory.Add("Alpha", FString::Printf(TEXT("%.2f"), DebugStation.TrackAlpha)); 
 	StationCategory.Add("PSpawns", FString::FromInt(DebugStation.TotalSpawnPoints)); 	
 
 	FGameplayDebuggerEntityOverheadCategory& WaitingCategory = Info.Category("Wait Info");

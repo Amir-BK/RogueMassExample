@@ -34,25 +34,12 @@ void RogueStationQueueUtility::BuildGridForWaitingPoint(const FRoguePlatformData
 	}
 
 	Grid.OccupiedBy.Init(FMassEntityHandle(), Grid.SlotPositions.Num());
-	Grid.FreeIndices.Reset();
 }
 
 int32 RogueStationQueueUtility::ClaimWaitingSlot(FRogueStationQueueFragment* QueueFragment, const int32 WaitingPointIdx, const FMassEntityHandle& Passenger, FVector& OutSlotPos)
 {
 	FRogueWaitingGrid* Grid = QueueFragment->Grids.Find(WaitingPointIdx);
 	if (!Grid) return INDEX_NONE;
-
-	// Fast path: free list
-	while (!Grid->FreeIndices.IsEmpty())
-	{
-		const int32 Idx = Grid->FreeIndices.Pop(EAllowShrinking::No);
-		if (Grid->OccupiedBy.IsValidIndex(Idx) && !Grid->OccupiedBy[Idx].IsValid())
-		{
-			Grid->OccupiedBy[Idx] = Passenger;
-			OutSlotPos = Grid->SlotPositions[Idx];
-			return Idx;
-		}
-	}
 
 	int32 SlotIdx = INDEX_NONE;
 	int32 CheckCount = Grid->OccupiedBy.Num();
@@ -95,7 +82,6 @@ void RogueStationQueueUtility::ReleaseSlot(FRogueStationQueueFragment& QueueFrag
 		if (Grid->IsValidSlotIndex(PassengerFragment.WaitingSlotIdx))
 		{
 			Grid->OccupiedBy[PassengerFragment.WaitingSlotIdx] = FMassEntityHandle();
-			Grid->FreeIndices.Add(PassengerFragment.WaitingSlotIdx);
 		}
 	}
 }

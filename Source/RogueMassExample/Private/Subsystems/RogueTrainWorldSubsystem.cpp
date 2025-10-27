@@ -655,7 +655,7 @@ void URogueTrainWorldSubsystem::ConfigureSpawnedEntity(const FRogueSpawnRequest&
 				PassengerFragment->WaitingPointIdx = INDEX_NONE;
 				PassengerFragment->WaitingSlotIdx = INDEX_NONE;
 				PassengerFragment->bWaiting = false;
-				PassengerFragment->Phase = ERoguePassengerPhase::ToStationWaitingPoint;
+				PassengerFragment->Phase = ERoguePassengerPhase::EnteredWorld;
 			}
 				if (auto* RadiusFragment = EntityManager->GetFragmentDataPtr<FAgentRadiusFragment>(Entity))
 				{

@@ -174,7 +174,7 @@ void URogueDebugDataProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 		for (int32 CIndex = 0; CIndex < NumCarriageEntities; CIndex++)
 		{
 			const int32 DebugSlot = CarriageSlots[CIndex].Slot;
-			if (!LocalPassengerSnap.IsValidIndex(DebugSlot)) continue;
+			if (!LocalCarriageSnap.IsValidIndex(DebugSlot)) continue;
 			
 			const FTransform& CTransform = CarriageTransformFragments[CIndex].GetTransform();
 			const FRogueTrainLinkFragment& LinkFragment = CarriageLinkFragments[CIndex];

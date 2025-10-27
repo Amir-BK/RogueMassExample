@@ -52,8 +52,10 @@ void URoguePassengerMovementProcessor::Execute(FMassEntityManager& EntityManager
 			FRoguePassengerFragment& PassengerFragment = PassengerFragments[EntityIndex];
 			const FMassEntityHandle Entity = SubContext.GetEntity(EntityIndex);
 
-			// Check we have a valid station and no target has been assigned yet
-			if (PassengerFragment.OriginStation.IsValid() && PassengerFragment.WaitingPointIdx == INDEX_NONE)
+			// Check we have a valid station, no wait point has been assigned and we are in the entered world phase
+			if (PassengerFragment.OriginStation.IsValid()
+				&& PassengerFragment.WaitingPointIdx == INDEX_NONE
+				&& PassengerFragment.Phase == ERoguePassengerPhase::EnteredWorld)
 			{				
 				// Assign a waiting point 
 				AssignWaitingPoint(EntityManager, PassengerFragment, Entity);
@@ -106,6 +108,7 @@ void URoguePassengerMovementProcessor::AssignWaitingPoint(const FMassEntityManag
 
 		// Assign move target to waiting point
 		PassengerFragment.Target = SlotPosition;
+		PassengerFragment.Phase = ERoguePassengerPhase::ToStationWaitingPoint;
 	}
 }
 
