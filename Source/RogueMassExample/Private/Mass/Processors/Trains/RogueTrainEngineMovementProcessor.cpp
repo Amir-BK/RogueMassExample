@@ -40,30 +40,30 @@ void URogueTrainEngineMovementProcessor::Execute(FMassEntityManager& EntityManag
 
 	EntityQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& SubContext)
 	{
-		const auto FollowView = SubContext.GetMutableFragmentView<FRogueTrainTrackFollowFragment>();
+		const auto TrackFollowFragments = SubContext.GetMutableFragmentView<FRogueTrainTrackFollowFragment>();
 		const auto StateView  = SubContext.GetMutableFragmentView<FRogueTrainStateFragment>();
 		const auto TransformView = SubContext.GetMutableFragmentView<FTransformFragment>();
 
 		for (int32 i = 0; i < SubContext.GetNumEntities(); ++i)
 		{
-			auto& Follow = FollowView[i];
+			auto& TrackFollowFragment = TrackFollowFragments[i];
 			const auto& State  = StateView[i];
 
 			float TargetSpeed = State.bIsStopping ? Settings->StationApproachSpeed : Settings->LeadCruiseSpeed;
 			TargetSpeed *= State.bAtStation ? 0.f : FMath::Clamp(State.HeadwaySpeedScale, 0.f, 1.f);
 			
-			Follow.Speed = TargetSpeed;
-			Follow.Alpha = RogueTrainUtility::WrapTrackAlpha(Follow.Alpha + (Follow.Speed * SubContext.GetDeltaTimeSeconds()) / TrackSharedFragment.TrackLength );
+			TrackFollowFragment.Speed = TargetSpeed;
+			TrackFollowFragment.Alpha = RogueTrainUtility::WrapTrackAlpha(TrackFollowFragment.Alpha + (TrackFollowFragment.Speed * SubContext.GetDeltaTimeSeconds()) / TrackSharedFragment.TrackLength );
 
-			RogueTrainUtility::SampleSpline(TrackSharedFragment, Follow.Alpha, Follow.WorldPos, Follow.WorldFwd);
+			RogueTrainUtility::SampleSpline(TrackSharedFragment, TrackFollowFragment.Alpha, TrackFollowFragment.WorldPos, TrackFollowFragment.WorldFwd);
 			
 			// Build an orientation (forward = tangent, up = world up or spline up if you have it)
-			const FVector Fwd = Follow.WorldFwd.GetSafeNormal();
+			const FVector Fwd = TrackFollowFragment.WorldFwd.GetSafeNormal();
 			const FQuat Rot = FRotationMatrix::MakeFromXZ(Fwd, FVector::UpVector).ToQuat();
 
 			// Write to the transform fragment
 			FTransform& TrainTransform = TransformView[i].GetMutableTransform();
-			TrainTransform.SetLocation(Follow.WorldPos);
+			TrainTransform.SetLocation(TrackFollowFragment.WorldPos);
 			TrainTransform.SetRotation(Rot);
 		}
 	});

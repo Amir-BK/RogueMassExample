@@ -165,7 +165,7 @@ void FRogueAIDebugCategory::GetStationEntityOverheadInfo(const FRogueDebugStatio
 {
 	FGameplayDebuggerEntityOverheadCategory& StationCategory = Info.Category("Station Info");	
 	StationCategory.Add("Index", FString::FromInt(DebugStation.StationIdx)); 	
-	StationCategory.Add("Alpha", FString::Printf(TEXT("%.2f"), DebugStation.TrackAlpha)); 
+	//StationCategory.Add("Alpha", FString::Printf(TEXT("%.2f"), DebugStation.TrackAlpha)); 
 	StationCategory.Add("PSpawns", FString::FromInt(DebugStation.TotalSpawnPoints)); 	
 
 	FGameplayDebuggerEntityOverheadCategory& WaitingCategory = Info.Category("Wait Info");

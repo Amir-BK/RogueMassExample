@@ -227,7 +227,7 @@ void URogueDebugDataProcessor::Execute(FMassEntityManager& EntityManager, FMassE
 			FRogueDebugStation DebugData;
 			DebugData.Entity = Entity;
 			DebugData.StationIdx = StationFragment.StationIndex;
-			DebugData.TrackAlpha = StationFragment.StationAlpha;
+			//DebugData.TrackAlpha = StationFragment.StationAlpha;
 			DebugData.WorldPos = STransform.GetLocation();
 			DebugData.Grids.Init(FRogueDebugWaitingGrid(), QueueFragment.Grids.Num());
 

@@ -47,6 +47,14 @@ enum class ERogueStationTrainPhase : uint8
 	Departing,
 };
 
+UENUM()
+enum class EPlatformSide : uint8
+{
+	Right,
+	Left,
+	Auto
+};
+
 USTRUCT(BlueprintType)
 struct FRoguePlatformConfig
 {
@@ -74,6 +82,9 @@ struct FRoguePlatformConfig
 	// Spawn points for passengers
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, meta=(ClampMin="0"))
 	int32 SpawnPoints = 2;
+
+	UPROPERTY(EditAnywhere, BlueprintReadOnly)
+	EPlatformSide Side = EPlatformSide::Auto;
 };
 
 USTRUCT(BlueprintType)
@@ -179,7 +190,9 @@ struct FRoguePlatformData
 	FVector Right = FVector::RightVector;
 	FVector Up = FVector::UpVector;
 	float DockAlpha = 0.f;
+	float TrackOffset = 0.f;
 	float PlatformLength = 1000.f;
+	EPlatformSide TrackSide = EPlatformSide::Auto;
 	
 	FTransform World = FTransform::Identity;
 	float Alpha = 0.f;   // normalized [0..1]
@@ -205,9 +218,8 @@ struct ROGUEMASSEXAMPLE_API FRogueStationFragment : public FMassFragment
 	GENERATED_BODY()
 	
 	int32 StationIndex = INDEX_NONE;
-	float StationAlpha = 0.f; // [0..1] along track
 	FVector WorldPosition = FVector::ZeroVector;
-	
+	FVector WorldTrackPoint = FVector::ZeroVector;	
 };
 
 USTRUCT()
@@ -288,18 +300,16 @@ struct ROGUEMASSEXAMPLE_API FRogueTrackSharedFragment : public FMassSharedFragme
 	GENERATED_BODY()
 	
 	TWeakObjectPtr<USplineComponent> Spline;
-	TArray<float> StationTrackAlphas; // sorted [0..1]
 	TArray<TPair<float, FMassEntityHandle>> StationEntities;
-	TArray<FVector> StationWorldPositions;
 	TArray<FRoguePlatformData> Platforms;
 	float TrackLength = 100000.f;
-	TArray<FStationRef> Stations; 
 
-	FORCEINLINE bool IsValid() const { return Spline.IsValid() && TrackLength > 0.f && StationTrackAlphas.Num() >= 2 && StationTrackAlphas.Num() == Platforms.Num(); }
+	FORCEINLINE bool IsValid() const { return Spline.IsValid() && TrackLength > 0.f && StationEntities.Num() == Platforms.Num(); }
 	FORCEINLINE FMassEntityHandle GetStationEntityByIndex(const int32 Index) const
 	{
 		return StationEntities.IsValidIndex(Index) ? StationEntities[Index].Value : FMassEntityHandle();
 	}
+	float GetStationAlphaByIndex(const int32 Index) const;
 };
 
 USTRUCT()

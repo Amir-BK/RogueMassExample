@@ -222,6 +222,335 @@ void URogueTrainWorldSubsystem::CreateStations()
 	}
 }
 
+void URogueTrainWorldSubsystem::ConfigureTrackToStation(const FRogueSpawnRequest& Request) const
+{
+	USplineComponent* Spline = TrackSpline.Get();
+	if (!Spline) return;
+
+	const FVector Center = Request.PlatformData.Center;
+	const float Alpha = Request.PlatformData.Alpha;
+	const float PlatformLength = FMath::Max(1.f, Request.PlatformData.PlatformLength);
+	const float PlatformLengthSquared = PlatformLength * PlatformLength;
+	const float PlatformHalfLength = PlatformLength * 0.5f;
+	const float TrackOffset = Request.PlatformData.TrackOffset;
+	const float SplineLength = Spline->GetSplineLength();
+	const float StationDistOnSpline = Alpha * SplineLength;
+	const FVector Fwd = Request.PlatformData.Fwd;
+	const FVector Up = Request.PlatformData.Up;	
+	const FVector Right = FVector::CrossProduct(Up, Fwd).GetSafeNormal();
+	
+	const FRotator Rotation = FRotationMatrix::MakeFromXZ(Fwd, Up).Rotator();
+	const FTransform StationTransform = Spline->GetTransformAtDistanceAlongSpline(StationDistOnSpline, ESplineCoordinateSpace::World);
+	float Sign = +1.f;
+	GetStationSide(Request.PlatformData, StationTransform, Sign);
+	
+	//const FVector Center = StationTransform.GetLocation() + Right * StationConfigData.PlatformConfig.TrackOffset + Up * StationConfigData.PlatformConfig.VerticalOffset;
+	const FVector PlatformSplinePos = Request.PlatformData.Center + Request.PlatformData.Fwd + Right * (Sign * Request.PlatformData.TrackOffset);
+	const FVector PlatformStartPos = Request.PlatformData.Center - Request.PlatformData.Fwd * PlatformHalfLength + Right * (Sign * Request.PlatformData.TrackOffset);
+	const FVector PlatformEndPos = Request.PlatformData.Center + Request.PlatformData.Fwd * PlatformHalfLength + Right * (Sign * Request.PlatformData.TrackOffset);		
+
+	DrawDebugSphere(GetWorld(), PlatformSplinePos, 20.f, 12, FColor::Black, true, 30.f);
+	DrawDebugSphere(GetWorld(), PlatformStartPos, 20.f, 12, FColor::Red, true, 30.f);
+	DrawDebugSphere(GetWorld(), PlatformEndPos, 20.f, 12, FColor::Blue, true, 30.f);
+
+	const int32 Num = Spline->GetNumberOfSplinePoints();
+	const FVector StationPosition = Spline->GetLocationAtDistanceAlongSpline(StationDistOnSpline, ESplineCoordinateSpace::World);
+
+	struct FAdjacentSplinePoints
+	{
+		int32 Prev = INDEX_NONE;	// index of preceding spline point
+		int32 PrevAdj = INDEX_NONE; 
+		int32 Next = INDEX_NONE;	// index of following spline point
+		int32 NextAdj = INDEX_NONE;
+	};
+
+	FAdjacentSplinePoints AdjPoints;
+	TArray<int32> UsedIndexes;
+
+	// Input key is e.g. 3.25 => between point 3 and 4
+	const float Key = Spline->GetInputKeyAtDistanceAlongSpline(StationDistOnSpline);
+	const int32 Prev = FMath::Clamp(FMath::FloorToInt(Key), 0, Num - 1);
+	int32 Next = Prev + 1;
+
+	Next = Spline->IsClosedLoop() ? Next %= Num : FMath::Clamp(Next, 0, Num - 1);
+	AdjPoints.Prev = Prev;
+	AdjPoints.Next = Next;
+	AdjPoints.PrevAdj = AdjPoints.Prev - 1 < 0 ? (Spline->IsClosedLoop() ? (Num - 1) : 0) : AdjPoints.Prev - 1;
+	int32 NextAdj = AdjPoints.Next + 1;
+	AdjPoints.NextAdj = Spline->IsClosedLoop() ? NextAdj %= Num : FMath::Clamp(AdjPoints.Next + 1, 0, Num - 1);
+
+	// Move prev and next points to platform start and end positions
+	Spline->SetLocationAtSplinePoint(AdjPoints.Prev, PlatformStartPos, ESplineCoordinateSpace::World, false);
+	Spline->SetRotationAtSplinePoint(AdjPoints.Prev, Rotation, ESplineCoordinateSpace::World, false);
+	Spline->SetLocationAtSplinePoint(AdjPoints.Next, PlatformEndPos, ESplineCoordinateSpace::World, false);
+	Spline->SetRotationAtSplinePoint(AdjPoints.Next, Rotation, ESplineCoordinateSpace::World, false);
+
+	// Move adjacent points away from platform area if to close
+	const FVector PrevAdjPos = Spline->GetLocationAtSplinePoint(AdjPoints.PrevAdj, ESplineCoordinateSpace::World);
+	if ((PrevAdjPos - PlatformStartPos).Length() < PlatformHalfLength)
+	{
+		const FVector DirectionAwayPrev = (PrevAdjPos - PlatformStartPos).GetSafeNormal();
+		const FVector NewPosPrevAdj = PrevAdjPos + DirectionAwayPrev * PlatformHalfLength;
+		Spline->SetLocationAtSplinePoint(AdjPoints.PrevAdj, NewPosPrevAdj, ESplineCoordinateSpace::World, false);
+	}
+	const FVector NextAdjPos = Spline->GetLocationAtSplinePoint(AdjPoints.NextAdj, ESplineCoordinateSpace::World);
+	if ((NextAdjPos - PlatformEndPos).Length() < PlatformHalfLength)
+	{
+		const FVector DirectionAwayNext = (NextAdjPos - PlatformEndPos).GetSafeNormal();
+		const FVector NewPosNextAdj = NextAdjPos + DirectionAwayNext * PlatformHalfLength;
+		Spline->SetLocationAtSplinePoint(AdjPoints.NextAdj, NewPosNextAdj, ESplineCoordinateSpace::World, false);
+	}
+	
+	Spline->UpdateSpline();
+
+	
+	/*int32 ClosestPoint = INDEX_NONE;
+	int32 NextClosestPoint = INDEX_NONE;
+	float CloseDist = PlatformLengthSquared;
+	float NextCloseDist = PlatformLengthSquared;
+	
+	for (int32 i = 0; i < Num; i++)
+	{
+		const FVector Point = Spline->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World);
+		const float Dist = FVector::DistSquared(Point, PlatformSplinePos);
+		if (Dist < NextCloseDist)
+		{			
+			if (Dist < CloseDist)
+			{
+				CloseDist = Dist;
+				ClosestPoint = i;
+			}
+			else
+			{
+				NextCloseDist = Dist;
+				NextClosestPoint = i;
+			}
+		}
+	}
+
+	const FVector ClosestPointPos = Spline->GetLocationAtSplinePoint(ClosestPoint, ESplineCoordinateSpace::World);
+	const FVector NextClosestPointPos = Spline->GetLocationAtSplinePoint(NextClosestPoint, ESplineCoordinateSpace::World);
+
+	for (int j = 0; j < Num; ++j)
+	{
+		const FVector Point = Spline->GetLocationAtSplinePoint(j, ESplineCoordinateSpace::World);		
+		const FVector DirectionAwayClosest = (PlatformSplinePos - ClosestPointPos).GetSafeNormal();
+		const FVector DirectionAwayNextClosest = (PlatformSplinePos - NextClosestPointPos).GetSafeNormal();
+		const float DistClosest = FVector::DistSquared(Point, ClosestPointPos);
+		const float DistNextClosest = FVector::DistSquared(Point, NextClosestPointPos);
+		if (DistClosest < PlatformLengthSquared)
+		{
+			// Move point away half platform length along direction to closest point
+			const FVector NewPosClosestPoint = Point + DirectionAwayClosest * PlatformHalfLength;
+			Spline->SetLocationAtSplinePoint(j, NewPosClosestPoint, ESplineCoordinateSpace::World, false);			
+		}
+		else if (DistNextClosest < PlatformLengthSquared)
+		{
+			const FVector NewPosNextClosestPoint = Point + DirectionAwayNextClosest * PlatformHalfLength;
+			Spline->SetLocationAtSplinePoint(j, NewPosNextClosestPoint, ESplineCoordinateSpace::World, false);	
+		}
+	}
+
+	// Set closest and next closest points to platform spline positions
+	Spline->SetLocationAtSplinePoint(ClosestPoint, PlatformStartPos, ESplineCoordinateSpace::World, false);
+	Spline->SetRotationAtSplinePoint(ClosestPoint, Rotation, ESplineCoordinateSpace::World, false);
+	Spline->SetLocationAtSplinePoint(NextClosestPoint, PlatformEndPos, ESplineCoordinateSpace::World, false);
+	Spline->SetRotationAtSplinePoint(NextClosestPoint, Rotation, ESplineCoordinateSpace::World, false);*/
+	
+	/*
+	auto ClosestPointIdx = [&](const FVector& Pos, const float MaxDist)->int32
+	{
+		int32 BestIdx = INDEX_NONE;
+		float BestD2 = MaxDist * MaxDist;
+		const int32 Num = Spline->GetNumberOfSplinePoints();
+		for (int32 i = 0; i < Num; i++)
+		{
+			const FVector Point = Spline->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World);
+			const float Dist = FVector::DistSquared(Point, Pos);
+			if (Dist < BestD2)
+			{
+				BestD2 = Dist;
+				BestIdx = i;
+			}
+		}
+		return BestIdx;
+	};
+
+	auto InsertPointAtWorld = [&](const FVector& Pos)->int32
+	{
+		// insert after the nearest existing point so we keep order stable
+		const int32 NearIdx = ClosestPointIdx(Pos, PlatformLength);
+		const int32 InsertIdx = FMath::Clamp(NearIdx == INDEX_NONE ? 0 : NearIdx+1, 0, Spline->GetNumberOfSplinePoints());
+		Spline->AddSplinePointAtIndex(Pos, InsertIdx, ESplineCoordinateSpace::World, false);
+		return InsertIdx;
+	};*/
+	// Check if there is a spline point near to the PlatformSplinePos
+
+	// If there is move that point to the PlatformSplinePos
+
+
+	// If not create a new spline point at PlatformSplinePos
+
+
+	// Check for any spline points to the rear (use full platform length)
+	// If single point move to the end of platform point
+	// If multiple points, Remove all but one and move to end of platform point
+	// If none create a new point at end of platform point
+	// Set any tangents to zero for these points so we get a straight section through the platform
+
+	// Check for any spline points to the front (use full platform length)
+	// If single point move to the start of platform point
+	// If multiple points, Remove all but one and move to start of platform point
+	// If none create a new point at start of platform point
+	// Set any tangents to zero for these points so we get a straight section through the platform
+	
+	/*const float Len            = FMath::Max(1.f, Spline->GetSplineLength());
+	const float Alpha          = FMath::Frac(Request.PlatformData.Alpha);
+	const float PlatLen        = FMath::Max(1.f, Request.PlatformData.PlatformLength);
+	const float HalfLen        = 0.5f * PlatLen;
+	const float sDist = Alpha * Len;
+	const FTransform sXf = Spline->GetTransformAtDistanceAlongSpline(sDist, ESplineCoordinateSpace::World);
+	const FVector sFwd = sXf.GetRotation().GetForwardVector();
+	const FVector sUp = sXf.GetRotation().GetUpVector();
+	const FVector sRight = FVector::CrossProduct(sUp, sFwd).GetSafeNormal();
+
+	// choose sign
+	float Sign = +1.f;
+	if (Request.PlatformData.TrackSide == EPlatformSide::Left)
+	{
+		Sign = -1.f;
+	}
+	else if (Request.PlatformData.TrackSide == EPlatformSide::Auto)
+	{
+		// pick the side whose offset line is closer to the provided platform center
+		const FVector CandR = sXf.GetLocation() + sRight *  Request.PlatformData.TrackOffset;
+		const FVector CandL = sXf.GetLocation() - sRight *  Request.PlatformData.TrackOffset;
+		Sign = (FVector::DistSquared(CandR, Request.PlatformData.Center) < FVector::DistSquared(CandL, Request.PlatformData.Center)) ? +1.f : -1.f;
+	}
+
+
+	// Distances ALONG THE SPLINE covering the platform window
+	auto Wrap = [&](float d){ d = FMath::Fmod(d, Len); return d < 0 ? d + Len : d; };
+	const bool bClosed = Spline->IsClosedLoop();
+	const float d0 = Wrap(sDist - PlatLen);
+	const float d1 = Wrap(sDist + PlatLen);
+	const float dStart = Wrap(sDist - HalfLen);
+	const float dEnd   = Wrap(sDist + HalfLen);
+
+	// Insert control points at the *track* endpoints by distance, then we will move them
+	auto AddPointAtDistance = [&](float d)->int32
+	{
+		const FVector pos = Spline->GetLocationAtDistanceAlongSpline(d, ESplineCoordinateSpace::World);
+		// insert after closest existing point (stable order)
+		int32 nearIdx = 0; float bestD2 = TNumericLimits<float>::Max();
+		const int32 N = Spline->GetNumberOfSplinePoints();
+		for (int32 i=0;i<N;i++)
+		{
+			const FVector p = Spline->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World);
+			const float dsq = FVector::DistSquared(p, pos);
+			if (dsq < bestD2){ bestD2 = dsq; nearIdx = i; }
+		}
+		const int32 idx = FMath::Clamp(nearIdx+1, 0, Spline->GetNumberOfSplinePoints());
+		Spline->AddSplinePointAtIndex(pos, idx, ESplineCoordinateSpace::World, false);
+		return idx;
+	};	
+
+	// Helper: is a distance x inside [a,b] on a possibly closed loop?
+	auto InSpan = [&](float x, float a, float b)->bool
+	{
+		if (!bClosed) return (x > a && x < b);
+		if (a <= b)   return (x > a && x < b);
+		// wrapped window: (a,Len) U (0,b)
+		return (x > a && x < Len) || (x > 0 && x < b);
+	};
+
+	// Remove any points whose *track distance* lies strictly inside (d0,d1)
+	for (int32 i = Spline->GetNumberOfSplinePoints()-1; i >= 0; --i)
+	{
+		const float di = Spline->GetDistanceAlongSplineAtSplinePoint(i);
+		if (InSpan(di, d0, d1))
+			Spline->RemoveSplinePoint(i, false);
+	}
+
+	// Recreate precise boundary points on the track
+	const int32 iStart = AddPointAtDistance(dStart);
+	const int32 iEnd   = AddPointAtDistance(dEnd);
+
+	// Build the straight offset line (world) parallel to the platform
+	const FVector L0 = Request.PlatformData.Center - Request.PlatformData.Fwd * HalfLen + sRight * (Sign * Request.PlatformData.TrackOffset);
+	const FVector L1 = Request.PlatformData.Center + Request.PlatformData.Fwd * HalfLen + sRight * (Sign * Request.PlatformData.TrackOffset);
+	const FVector dir = (L1 - L0).GetSafeNormal();
+	const FRotator rot = FRotationMatrix::MakeFromXZ(dir, sUp).Rotator();
+	
+	// Move endpoint spline points to exact locations
+	auto ClosestPointIdx = [&](const FVector& Pos, float MaxDist)->int32
+	{
+		int32 BestIdx = INDEX_NONE;
+		float BestD2 = MaxDist * MaxDist;
+		const int32 Num = Spline->GetNumberOfSplinePoints();
+		for (int32 i=0;i<Num;i++)
+		{
+			const FVector P = Spline->GetLocationAtSplinePoint(i, ESplineCoordinateSpace::World);
+			const float D2 = FVector::DistSquared(P, Pos);
+			if (D2 < BestD2) { BestD2 = D2; BestIdx = i; }
+		}
+		return BestIdx;
+	};
+
+	auto InsertPointAtWorld = [&](const FVector& Pos)->int32
+	{
+		// insert after the nearest existing point so we keep order stable
+		const int32 NearIdx = ClosestPointIdx(Pos, 50000.f); // big net
+		const int32 InsIdx  = FMath::Clamp(NearIdx == INDEX_NONE ? 0 : NearIdx+1, 0, Spline->GetNumberOfSplinePoints());
+		Spline->AddSplinePointAtIndex(Pos, InsIdx, ESplineCoordinateSpace::World, false);
+		return InsIdx;
+	};
+
+	auto MakeLinear = [&](int32 i, const FVector& P)
+	{
+		Spline->SetLocationAtSplinePoint(i, P, ESplineCoordinateSpace::World, false);
+		Spline->SetRotationAtSplinePoint(i, rot, ESplineCoordinateSpace::World, false);
+		Spline->SetTangentAtSplinePoint(i, FVector::ZeroVector, ESplineCoordinateSpace::World, false);
+		Spline->SetSplinePointType(i, ESplinePointType::Linear, false);
+	};
+
+	// ensure exact endpoints + one interior point
+	int32 iCenter = AddPointAtDistance(sDist);
+	// place it on the straight at parameter t by distance along the window
+	auto ParamT = [&](float d)->float {
+		const float segLen = (dEnd >= dStart) ? (dEnd - dStart) : (Len - dStart + dEnd);
+		float off = (d >= dStart)
+			? (d - dStart)
+			: (Len - dStart + d);
+		return FMath::Clamp(off / FMath::Max(1.f, segLen), 0.f, 1.f);
+	};
+	
+	MakeLinear(iStart,  L0);
+	MakeLinear(iEnd,    L1);
+	MakeLinear(iCenter, FMath::Lerp(L0, L1, ParamT(sDist)));*/
+
+	
+}
+
+void URogueTrainWorldSubsystem::GetStationSide(const FRoguePlatformData& PlatformData, const FTransform& StationTransform, float& Out)
+{
+	const FVector Fwd = PlatformData.Fwd;
+	const FVector Up = PlatformData.Up;	
+	const FVector Right = FVector::CrossProduct(Up, Fwd).GetSafeNormal();
+	
+	if (PlatformData.TrackSide == EPlatformSide::Left)
+	{
+		Out = -1.f;
+	}
+	else if (PlatformData.TrackSide == EPlatformSide::Auto)
+	{
+		// pick the side whose offset line is closer to the provided platform center
+		const FVector RightCandidate = StationTransform.GetLocation() + Right *  PlatformData.TrackOffset;
+		const FVector LeftCandidate = StationTransform.GetLocation() - Right *  PlatformData.TrackOffset;
+		Out = (FVector::DistSquared(RightCandidate, PlatformData.Center) < FVector::DistSquared(LeftCandidate, PlatformData.Center)) ? +1.f : -1.f;
+	}
+}
+
 void URogueTrainWorldSubsystem::BuildStationPlatformData()
 {
 	const auto* Settings = GetDefault<URogueDeveloperSettings>();
@@ -262,7 +591,7 @@ void URogueTrainWorldSubsystem::CreateTrains()
 	const FMassEntityTemplate* TrainCarriageTemplate = GetCarriageTemplate();
 	if (!TrainEngineTemplate->IsValid() || !TrainCarriageTemplate->IsValid()) return;
 
-	const int32 NumStations = TrackSharedFragment.StationTrackAlphas.Num();
+	const int32 NumStations = TrackSharedFragment.StationEntities.Num();
 	if (NumStations <= 0) return;
 	
 	const int32 NumberOfTrains = Settings->NumTrains;	
@@ -276,8 +605,8 @@ void URogueTrainWorldSubsystem::CreateTrains()
 		const int32 StationIdx = i % NumStations;
 		const int32 PassIdx = i / NumStations;
 		const int32 NextIdx = (StationIdx + 1) % NumStations;
-		const float T0 = TrackSharedFragment.StationTrackAlphas[StationIdx];
-		const float T1 = TrackSharedFragment.StationTrackAlphas[NextIdx];
+		const float T0 = TrackSharedFragment.GetStationAlphaByIndex(StationIdx);
+		const float T1 = TrackSharedFragment.GetStationAlphaByIndex(NextIdx);
 		const float dT = RogueTrainUtility::ArcDistanceWrapped(T0, T1);  // segment length in normalized
 		const float Frac = (Passes <= 1) ? 0.f : static_cast<float>(PassIdx) / static_cast<float>(Passes); // 0 (at station), 0.5 (mid), 0.333 etc.
 		const float TrainAlpha = RogueTrainUtility::WrapTrackAlpha(T0 + dT * Frac);
@@ -353,7 +682,6 @@ void URogueTrainWorldSubsystem::BuildTrackSharedData()
 
 	if (Platforms.Num() == 0) return;
 	CachedTrack.StationEntities.Reset(Platforms.Num());
-	CachedTrack.StationTrackAlphas.Reset(Platforms.Num());
 	CachedTrack.Platforms.Reset(Platforms.Num());
 	
 	for (int i = 0; i < Platforms.Num(); ++i)
@@ -364,7 +692,6 @@ void URogueTrainWorldSubsystem::BuildTrackSharedData()
 			CachedTrack.StationEntities.Emplace(i, *StationEntity);
 		}
 		
-		CachedTrack.StationTrackAlphas.Add(Platforms[i].Alpha);
 		CachedTrack.Platforms.Add(Platforms[i]);
 	}
 
@@ -530,8 +857,8 @@ void URogueTrainWorldSubsystem::ConfigureSpawnedEntity(const FRogueSpawnRequest&
 			if (auto* StationFragment = EntityManager->GetFragmentDataPtr<FRogueStationFragment>(Entity))
 			{
 				StationFragment->StationIndex = Request.StationIdx;
-				StationFragment->StationAlpha = Request.PlatformData.Alpha;
 				StationFragment->WorldPosition = Request.PlatformData.Center;
+				
 			}
 				
 			if (auto* QueueFragment = EntityManager->GetFragmentDataPtr<FRogueStationQueueFragment>(Entity))
@@ -548,6 +875,8 @@ void URogueTrainWorldSubsystem::ConfigureSpawnedEntity(const FRogueSpawnRequest&
 				}
 			}
 
+			//ConfigureTrackToStation(Request);
+
 			const int32 Slot = GetStationDebugIndex();
 			if (auto* DebugSlotFragment = EntityManager->GetFragmentDataPtr<FRogueDebugSlotFragment>(Entity))
 			{
@@ -555,11 +884,29 @@ void URogueTrainWorldSubsystem::ConfigureSpawnedEntity(const FRogueSpawnRequest&
 				{
 					DebugSlotFragment->Slot = Slot;
 				}				
-			}
+			}			
 				
-			// Once all stations are created, create trains
+			// Once all stations are created, update station alphas and create trains
 			if (StationEntities.Num() == Settings->Stations.Num()) // All stations created
-			{					
+			{	
+				/*for (const auto& StationEntity : StationEntities)
+				{
+					if (!Platforms.IsValidIndex(StationEntity.Key)) continue;
+					
+					ConfigureTrackToStation(Request);
+					const float SplineLength = TrackSpline->GetSplineLength();
+					const float Distance = TrackSpline->GetDistanceAlongSplineAtLocation(Platforms[StationEntity.Key].Center, ESplineCoordinateSpace::World);
+					const float NewAlpha = Distance/SplineLength;
+
+					Platforms[StationEntity.Key].Alpha = NewAlpha;
+					if (auto* StationFragment = EntityManager->GetFragmentDataPtr<FRogueStationFragment>(StationEntities[StationEntity.Key]))
+					{
+						StationFragment->StationAlpha = NewAlpha;
+					}
+
+					bTrackDirty = true;
+				}*/
+				
 				CreateTrains();
 			}
 #if WITH_EDITOR

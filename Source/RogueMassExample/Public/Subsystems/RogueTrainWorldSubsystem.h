@@ -141,6 +141,8 @@ private:
 	void DiscoverSplineFromSettings();
 	void GatherStationActors();
 	void CreateStations();
+	void ConfigureTrackToStation(const FRogueSpawnRequest& Request) const;
+	static void GetStationSide(const FRoguePlatformData& PlatformData, const FTransform& StationTransform, float& Out);
 	void BuildStationPlatformData();
 	void CreateTrains();
 

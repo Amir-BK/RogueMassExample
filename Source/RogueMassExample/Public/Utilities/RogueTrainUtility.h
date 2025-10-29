@@ -9,7 +9,8 @@
 namespace RogueTrainUtility
 {
 	inline float WrapTrackAlpha(const float Alpha) { return Alpha - FMath::FloorToFloat(Alpha); }
-	int32 FindNextStation(const TArray<float>& StationAlphas, const float CurrentAlpha);
+	int32 FindNextStation(const USplineComponent& Spline,const TArray<FRoguePlatformData>& Platforms, const float CurrentAlpha);
+	float AlphaAtWorld(const USplineComponent& Spline, const FVector& WorldPos);
 	float ArcDistanceWrapped(const float FromAlpha, const float ToAlpha);
 	void SampleSpline(const FRogueTrackSharedFragment& TrackSharedFragment, const float Alpha, FVector& OutPos, FVector& OutFwd);
 	

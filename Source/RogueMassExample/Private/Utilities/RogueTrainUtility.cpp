@@ -6,15 +6,32 @@
 
 using namespace RogueTrainUtility;
 
-int32 RogueTrainUtility::FindNextStation(const TArray<float>& StationAlphas, const float CurrentAlpha)
+int32 RogueTrainUtility::FindNextStation(const USplineComponent& Spline,const TArray<FRoguePlatformData>& Platforms, const float CurrentAlpha)
 {
-	if (StationAlphas.Num() == 0) return INDEX_NONE;
-	for (int32 i = 0; i < StationAlphas.Num(); ++i)
+	int32 BestIdx = INDEX_NONE;
+	float BestArc = FLT_MAX;
+
+	for (int32 i = 0; i < Platforms.Num(); ++i)
 	{
-		if (StationAlphas[i] >= CurrentAlpha) return i;
+		const FVector Ref = Platforms[i].Center; // or Dock position if you have one
+		const float StationAlpha = AlphaAtWorld(Spline, Ref);
+
+		const float Arc = ArcDistanceWrapped(CurrentAlpha, StationAlpha);
+		if (Arc > KINDA_SMALL_NUMBER && Arc < BestArc) // ignore “at current alpha”
+		{
+			BestArc = Arc;
+			BestIdx = i;
+		}
 	}
-		
-	return 0; 
+	return BestIdx; 
+}
+
+float RogueTrainUtility::AlphaAtWorld(const USplineComponent& Spline, const FVector& WorldPos)
+{
+	const float Len  = FMath::Max(1.f, Spline.GetSplineLength());
+	const float Key  = Spline.FindInputKeyClosestToWorldLocation(WorldPos);
+	const float Dist = Spline.GetDistanceAlongSplineAtSplineInputKey(Key);
+	return FMath::Frac(Dist / Len);
 }
 
 float RogueTrainUtility::ArcDistanceWrapped(const float FromAlpha, const float ToAlpha)
@@ -112,6 +129,8 @@ void RogueTrainUtility::BuildPlatformSegment(const USplineComponent& Spline, con
 	if (DockDist < 0.f) DockDist += TrackLength;
 
 	Out.DockAlpha = (TrackLength > 0.f) ? (DockDist / TrackLength) : StationConfigData.TrackAlpha;
+	Out.TrackOffset = StationConfigData.PlatformConfig.TrackOffset;
+	Out.TrackSide = StationConfigData.PlatformConfig.Side;
 
 	// Bake waiting/spawn points aligned to the straight platform
 	Out.WaitingPoints.Reset();

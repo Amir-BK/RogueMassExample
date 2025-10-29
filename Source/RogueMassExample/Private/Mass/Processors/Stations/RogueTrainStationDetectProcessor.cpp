@@ -40,24 +40,24 @@ void URogueTrainStationDetectProcessor::Execute(FMassEntityManager& EntityManage
 
 	EntityQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& SubContext)
 	{
-		const auto FollowView = SubContext.GetMutableFragmentView<FRogueTrainTrackFollowFragment>();
+		const auto TrackFollowFragments = SubContext.GetMutableFragmentView<FRogueTrainTrackFollowFragment>();
 		const auto StateView  = SubContext.GetMutableFragmentView<FRogueTrainStateFragment>();
 
 		for (int32 i = 0; i < SubContext.GetNumEntities(); ++i)
 		{
-			const auto& Follow = FollowView[i];
+			const auto& TrackFollowFragment = TrackFollowFragments[i];
 			auto& State = StateView[i];
 
 			if (State.TargetStationIdx == INDEX_NONE)
 			{
-				State.TargetStationIdx = RogueTrainUtility::FindNextStation(TrackSharedFragment.StationTrackAlphas, Follow.Alpha);
-				State.PrevAlpha = Follow.Alpha;
+				State.TargetStationIdx = RogueTrainUtility::FindNextStation(*TrackSharedFragment.Spline, TrackSharedFragment.Platforms, TrackFollowFragment.Alpha);
+				State.PrevAlpha = TrackFollowFragment.Alpha;
 				continue; // next tick we’ll evaluate distance
 			}
 
 			//const float StationTrackAlpha = TrackSharedFragment.StationTrackAlphas[State.TargetStationIdx];
 			const float DockAlpha = TrackSharedFragment.Platforms[State.TargetStationIdx].DockAlpha;
-			const float Arc = RogueTrainUtility::ArcDistanceWrapped(Follow.Alpha, DockAlpha);
+			const float Arc = RogueTrainUtility::ArcDistanceWrapped(TrackFollowFragment.Alpha, DockAlpha);
 			const float Dist = Arc * TrackSharedFragment.TrackLength;
 			const float DeltaTime = SubContext.GetDeltaTimeSeconds();
 			
@@ -85,7 +85,7 @@ void URogueTrainStationDetectProcessor::Execute(FMassEntityManager& EntityManage
 					State.StationTrainPhase = ERogueStationTrainPhase::NotStopped;
 					State.bIsStopping = false;
 					State.PreviousStationIndex = State.TargetStationIdx;
-					State.TargetStationIdx = (State.TargetStationIdx + 1) % TrackSharedFragment.StationTrackAlphas.Num();
+					State.TargetStationIdx = (State.TargetStationIdx + 1) % TrackSharedFragment.StationEntities.Num();
 				}
 			}
 		}
