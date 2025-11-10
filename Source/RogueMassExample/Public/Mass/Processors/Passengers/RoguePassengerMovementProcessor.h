@@ -38,6 +38,6 @@ private:
 	static void UnloadAtStation(const FMassEntityManager& EntityManager, FRoguePassengerFragment& PassengerFragment, const FTransform& PTransform);
 	static void ToPostUnloadWaitingPoint(const FMassEntityManager& EntityManager, FRoguePassengerFragment& PassengerFragment,
 		const FTransform& PTransform);
-	static void ToExitSpawn(const FMassEntityManager& EntityManager, URogueTrainWorldSubsystem* TrainSubsystem, const FMassExecutionContext& Context, FRoguePassengerFragment& PassengerFragment,
+	static void ToExitSpawn(const FMassEntityManager& EntityManager, URogueTrainWorldSubsystem& TrainSubsystem, const FMassExecutionContext& Context, FRoguePassengerFragment& PassengerFragment,
 		const FTransform& PTransform, const FMassEntityHandle PassengerHandle);
 };

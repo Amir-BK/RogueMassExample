@@ -23,7 +23,10 @@ void URoguePassengerMovementProcessor::ConfigureQueries(const TSharedRef<FMassEn
 	EntityQuery.AddConstSharedRequirement<FMassMovementParameters>(EMassFragmentPresence::All);
 	EntityQuery.AddRequirement<FRoguePassengerFragment>(EMassFragmentAccess::ReadWrite, EMassFragmentPresence::All);	
 	EntityQuery.AddTagRequirement<FRogueTrainPassengerTag>(EMassFragmentPresence::All);
+	EntityQuery.AddSubsystemRequirement<URogueTrainWorldSubsystem>(EMassFragmentAccess::ReadWrite);
 	EntityQuery.RegisterWithProcessor(*this);	
+
+	ProcessorRequirements.AddSubsystemRequirement<URogueTrainWorldSubsystem>(EMassFragmentAccess::ReadWrite);
 }
 
 void URoguePassengerMovementProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
@@ -72,7 +75,10 @@ void URoguePassengerMovementProcessor::Execute(FMassEntityManager& EntityManager
 			if (PassengerFragment.Phase != ERoguePassengerPhase::RideOnTrain && !PassengerFragment.bWaiting)
 			{
 				MoveToTarget(PassengerFragment, MoveTarget, MoveParams, PTransform, PassengerFragment.Target);
-			}			
+			}
+
+			// Subsystem with declared thread-safe access
+			URogueTrainWorldSubsystem& TrainSubsystemMutable = SubContext.GetMutableSubsystemChecked<URogueTrainWorldSubsystem>();
 
 			// Handle phase-specific logic, destination arrival, boarding, departing and waiting
 			switch (PassengerFragment.Phase)
@@ -82,7 +88,7 @@ void URoguePassengerMovementProcessor::Execute(FMassEntityManager& EntityManager
 				case ERoguePassengerPhase::RideOnTrain: break; // Riding, do nothing
 				case ERoguePassengerPhase::UnloadAtStation: UnloadAtStation(EntityManager, PassengerFragment, PTransform); break;
 				case ERoguePassengerPhase::ToPostUnloadWaitingPoint: ToPostUnloadWaitingPoint(EntityManager, PassengerFragment, PTransform); break;
-				case ERoguePassengerPhase::ToExitSpawn: ToExitSpawn(EntityManager, TrainSubsystem, SubContext, PassengerFragment, PTransform, PassengerHandle); break;
+				case ERoguePassengerPhase::ToExitSpawn: ToExitSpawn(EntityManager, TrainSubsystemMutable, SubContext, PassengerFragment, PTransform, PassengerHandle); break;
 				default:
 					break;
 			}
@@ -204,7 +210,7 @@ void URoguePassengerMovementProcessor::ToPostUnloadWaitingPoint(const FMassEntit
 	}
 }
 
-void URoguePassengerMovementProcessor::ToExitSpawn(const FMassEntityManager& EntityManager, URogueTrainWorldSubsystem* TrainSubsystem, const FMassExecutionContext& Context, FRoguePassengerFragment& PassengerFragment,
+void URoguePassengerMovementProcessor::ToExitSpawn(const FMassEntityManager& EntityManager, URogueTrainWorldSubsystem& TrainSubsystem, const FMassExecutionContext& Context, FRoguePassengerFragment& PassengerFragment,
 	 const FTransform& PTransform, const FMassEntityHandle PassengerHandle)
 {
 	if (FVector::DistSquared(PTransform.GetLocation(), PassengerFragment.Target) <= FMath::Square(PassengerFragment.AcceptanceRadius))
@@ -219,6 +225,6 @@ void URoguePassengerMovementProcessor::ToExitSpawn(const FMassEntityManager& Ent
 		
 		// Return to pool / mark for destruction
 		PassengerFragment.Phase = ERoguePassengerPhase::Pool;
-		TrainSubsystem->EnqueueEntityToPool(PassengerHandle, Context, ERogueEntityType::Passenger);
+		TrainSubsystem.EnqueueEntityToPool(PassengerHandle, Context, ERogueEntityType::Passenger);
 	}
 }

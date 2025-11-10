@@ -53,34 +53,6 @@ void URogueTrainEngineMovementProcessor::Execute(FMassEntityManager& EntityManag
 			FTransform& TrainTransform = TransformView[i].GetMutableTransform();
 			if (!TrackSharedFragment.StationEntities.IsValidIndex(State.TargetStationIdx)) continue;
 
-			// Handle platform approach			
-			/*const auto& PlatformData = TrackSharedFragment.Platforms[State.TargetStationIdx];
-			const float DockAlpha = PlatformData.DockAlpha; // normalized [0..1)
-			const float DistAlpha = RogueTrainUtility::ArcDistanceWrapped(TrackFollowFragment.Alpha, DockAlpha);
-			const float DistStation = DistAlpha * TrackSharedFragment.TrackLength;
-			const float StopRadius = Settings->StationStopRadius;
-			const float ApproachWindow = StopRadius + State.TrainLength;
-			const bool bApproachingStation = (DistStation <= ApproachWindow);
-			bool bCanDockStation = false;*/
-			
-						
-			/*const FMassEntityHandle StationEntity = TrackSharedFragment.StationEntities[State.TargetStationIdx].Value;
-			if (auto* StationFragment = EntityManager.GetFragmentDataPtr<FRogueStationFragment>(StationEntity))
-			{
-				if (!StationFragment->DockedTrain.IsValid())
-				{
-					StationFragment->DockedTrain = Entity;
-				}
-				
-				bCanDockStation = (StationFragment->DockedTrain == Entity);
-			}
-
-			auto SmoothStep = [](float Scale)
-			{
-				Scale = FMath::Clamp(Scale, 0.f, 1.f);
-				return Scale * Scale * (3.f - 2.f * Scale);
-			};*/
-			
 			float TargetSpeed = Settings->LeadCruiseSpeed;
 			TargetSpeed *= State.HeadwaySpeedScale;
 
@@ -92,13 +64,6 @@ void URogueTrainEngineMovementProcessor::Execute(FMassEntityManager& EntityManag
 			{
 				TargetSpeed = FMath::Min(TargetSpeed, Settings->StationApproachSpeed);
 			}
-
-			// If approaching this station but cannot dock yet, taper to stop
-			/*if (bApproachingStation && !bCanDockStation && !State.bAtStation)
-			{
-				const float HoldScale = SmoothStep(DistStation / ApproachWindow);
-				TargetSpeed = FMath::Max(TargetSpeed * HoldScale, 0.f);
-			}*/
 
 			// Use 'target' for your acceleration model
 			TrackFollowFragment.Speed = FMath::FInterpTo(TrackFollowFragment.Speed, TargetSpeed, SubContext.GetDeltaTimeSeconds(), 2.f);

@@ -61,9 +61,9 @@ void URogueTrainHeadwayProcessor::Execute(FMassEntityManager& EntityManager, FMa
 
 			// per-lead carriages if you track it, else default
 			int32 NumCars = Settings ? Settings->CarriagesPerTrain : 3;
-			if (TrainSubsystem->CarriageCounts.Contains(SubContext.GetEntity(i)))
+			if (State.Carriages.Num() > 0)
 			{
-				NumCars = TrainSubsystem->CarriageCounts[SubContext.GetEntity(i)];
+				NumCars = State.Carriages.Num();
 			}
 			
 			State.TrainLength = EngineLength + NumCars * CarriageLength;

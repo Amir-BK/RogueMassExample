@@ -18,6 +18,7 @@ void URoguePassengerHeightProcessor::ConfigureQueries(const TSharedRef<FMassEnti
 {
 	EntityQuery.AddRequirement<FTransformFragment>(EMassFragmentAccess::ReadWrite);
 	EntityQuery.AddRequirement<FRoguePassengerFragment>(EMassFragmentAccess::ReadWrite, EMassFragmentPresence::All);
+	EntityQuery.AddTagRequirement<FRogueTrainPassengerTag>(EMassFragmentPresence::All);
 }
 
 void URoguePassengerHeightProcessor::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)

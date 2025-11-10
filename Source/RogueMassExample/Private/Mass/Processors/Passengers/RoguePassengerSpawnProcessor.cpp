@@ -29,6 +29,9 @@ void URoguePassengerSpawnProcessor::Execute(FMassEntityManager& EntityManager, F
 
 	auto* TrainSubsystem = Context.GetWorld()->GetSubsystem<URogueTrainWorldSubsystem>();
 	if (!TrainSubsystem) return;
+
+	const FRogueTrackSharedFragment& TrackSharedFragment = TrainSubsystem->GetTrackShared();
+	if (!TrackSharedFragment.IsValid()) return;
 	
 	const FMassEntityTemplate* PassengerEntityTemplate = TrainSubsystem->GetPassengerTemplate();
 	if (!PassengerEntityTemplate->IsValid()) return;
@@ -40,37 +43,16 @@ void URoguePassengerSpawnProcessor::Execute(FMassEntityManager& EntityManager, F
 	// Cap overall passengers
 	if (TrainSubsystem->GetLiveCount(ERogueEntityType::Passenger) >= Settings->MaxPassengersOverall) return;
 
-	// Generate list of station entities (so we can pick one randomly)
-	TArray<FMassEntityHandle> StationEntities;
-	EntityQuery.ForEachEntityChunk(Context, [&](FMassExecutionContext& SubContext)
-	{
-		for (int32 i = 0; i < SubContext.GetNumEntities(); ++i)
-		{
-			StationEntities.Add(SubContext.GetEntity(i));
-		}
-	});
-
-	if (StationEntities.Num() < 2) return;
-
 	// Pick a random station that has spawn points to spawn at
-	const FMassEntityHandle StationHandle = StationEntities[FMath::RandHelper(StationEntities.Num())];
+	const FMassEntityHandle StationHandle = TrackSharedFragment.GetRandomStationEntity();
+	if (!StationHandle.IsValid()) return;
 
 	// Get station queue fragment from chosen station
 	auto* StationQueueFragment = EntityManager.GetFragmentDataPtr<FRogueStationQueueFragment>(StationHandle);
 	if (!StationQueueFragment || StationQueueFragment->SpawnPoints.Num() == 0) return;
 
 	// Get a random station index for destination that is not current station index
-	const FMassEntityHandle OriginStation = StationHandle;
-	FMassEntityHandle DestinationStation = OriginStation;
-	while (DestinationStation == OriginStation)
-	{
-		const int32 DestIdx = FMath::RandHelper(StationEntities.Num());
-		if (StationEntities.IsValidIndex(DestIdx))
-		{
-			DestinationStation = StationEntities[DestIdx];
-		}		
-	}
-
+	const FMassEntityHandle DestinationStation = TrackSharedFragment.GetRandomStationEntity();
 	if (!DestinationStation.IsValid()) return;
 	
 	// Choose a random waiting point
@@ -82,15 +64,15 @@ void URoguePassengerSpawnProcessor::Execute(FMassEntityManager& EntityManager, F
 	const FVector SpawnLoc = StationQueueFragment->SpawnPoints[FMath::RandHelper(StationQueueFragment->SpawnPoints.Num())];
 
 	FRogueSpawnRequest Request;
-	Request.Type				= ERogueEntityType::Passenger;
-	Request.EntityTemplate		= PassengerEntityTemplate;
-	Request.RemainingCount		= 1;
-	Request.Transform			= FTransform(SpawnLoc);
-	Request.OriginStation		= OriginStation;
-	Request.DestinationStation  = DestinationStation;
-	Request.WaitingPointIdx		= WaitingIdx;
-	Request.AcceptanceRadius	= Settings->PassengerAcceptanceRadius;
-	Request.MaxSpeed			= Settings->PassengerMaxSpeed;
+	Request.Type = ERogueEntityType::Passenger;
+	Request.EntityTemplate = PassengerEntityTemplate;
+	Request.RemainingCount = 1;
+	Request.Transform = FTransform(SpawnLoc);
+	Request.OriginStation = StationHandle;
+	Request.DestinationStation = DestinationStation;
+	Request.WaitingPointIdx = WaitingIdx;
+	Request.AcceptanceRadius = Settings->PassengerAcceptanceRadius;
+	Request.MaxSpeed = Settings->PassengerMaxSpeed;
 
 	TrainSubsystem->EnqueueSpawns(Request);
 }

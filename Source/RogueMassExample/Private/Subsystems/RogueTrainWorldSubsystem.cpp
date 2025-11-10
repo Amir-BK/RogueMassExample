@@ -769,7 +769,6 @@ void URogueTrainWorldSubsystem::ConfigureStation(const FRogueSpawnRequest& Reque
 	if (auto* StationFragment = EntityManager->GetFragmentDataPtr<FRogueStationFragment>(Entity))
 	{
 		StationFragment->StationIndex = Request.StationIdx;
-		StationFragment->WorldPosition = Request.PlatformData.Center;
 		StationFragment->DockedTrain = FMassEntityHandle();
 	}
 				
@@ -827,8 +826,9 @@ void URogueTrainWorldSubsystem::ConfigureTrain(const FRogueSpawnRequest& Request
 	{
 		State->bAtStation = true;
 		State->TargetStationIdx = Request.StationIdx;
-		State->PreviousStationIndex = Request.StationIdx;
+		State->PreviousStationIdx = Request.StationIdx;
 		State->StationTimeRemaining = 2.f;
+		State->Carriages.Reset(Settings->CarriagesPerTrain);
 	}
 				
 	if (auto* Follow = EntityManager->GetFragmentDataPtr<FRogueTrainTrackFollowFragment>(Entity))
@@ -854,8 +854,6 @@ void URogueTrainWorldSubsystem::ConfigureTrain(const FRogueSpawnRequest& Request
 			DebugSlotFragment->Slot = Slot;
 		}				
 	}
-
-	CarriageCounts.Add(Entity, 0);
 }
 
 void URogueTrainWorldSubsystem::ConfigureCarriage(const FRogueSpawnRequest& Request, const FMassEntityHandle Entity)
@@ -895,7 +893,11 @@ void URogueTrainWorldSubsystem::ConfigureCarriage(const FRogueSpawnRequest& Requ
 		}				
 	}
 
-	CarriageCounts.FindOrAdd(Request.LeadHandle)++;
+	if (auto* TrainStateFragment = EntityManager->GetFragmentDataPtr<FRogueTrainStateFragment>(Request.LeadHandle))
+	{
+		TrainStateFragment->Carriages.Add(Entity);
+	}
+
 	LeadToCarriages.FindOrAdd(Request.LeadHandle).Add(Entity);
 }
 

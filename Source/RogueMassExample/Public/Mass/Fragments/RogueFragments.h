@@ -13,15 +13,6 @@ USTRUCT() struct ROGUEMASSEXAMPLE_API FRogueTrainEngineTag : public FMassTag { G
 USTRUCT() struct ROGUEMASSEXAMPLE_API FRogueTrainCarriageTag : public FMassTag { GENERATED_BODY() };
 USTRUCT() struct ROGUEMASSEXAMPLE_API FRogueTrainStationTag : public FMassTag { GENERATED_BODY() };
 USTRUCT() struct ROGUEMASSEXAMPLE_API FRogueTrainPassengerTag : public FMassTag { GENERATED_BODY() };
-
-USTRUCT() struct ROGUEMASSEXAMPLE_API FRogueTrainAtStationTag : public FMassTag { GENERATED_BODY() };
-USTRUCT() struct ROGUEMASSEXAMPLE_API FRogueTrainDoorsOpenTag : public FMassTag { GENERATED_BODY() };
-USTRUCT() struct ROGUEMASSEXAMPLE_API FRogueTrainReadyDepartTag : public FMassTag { GENERATED_BODY() };
-
-USTRUCT() struct ROGUEMASSEXAMPLE_API FRoguePassengerWaitingTag : public FMassTag { GENERATED_BODY() };
-USTRUCT() struct ROGUEMASSEXAMPLE_API FRoguePassengerOnTrainTag : public FMassTag { GENERATED_BODY() };
-USTRUCT() struct ROGUEMASSEXAMPLE_API FRoguePassengerDespawnTag : public FMassTag { GENERATED_BODY() };
-
 USTRUCT() struct ROGUEMASSEXAMPLE_API FRoguePooledEntityTag : public FMassTag { GENERATED_BODY() };
 
 UENUM()
@@ -147,6 +138,7 @@ struct ROGUEMASSEXAMPLE_API FRoguePassengerQueueEntry
 {
 	GENERATED_BODY()
 
+	
 	FMassEntityHandle Passenger = FMassEntityHandle();
 	FMassEntityHandle DestStation = FMassEntityHandle();
 	int32 WaitingPointIdx = INDEX_NONE;
@@ -167,7 +159,7 @@ USTRUCT()
 struct ROGUEMASSEXAMPLE_API FRogueStationQueueFragment : public FMassFragment
 {
 	GENERATED_BODY()
-	
+
 	TMap<int32, TArray<FRoguePassengerQueueEntry>> QueuesByWaitingPoint;
 	TMap<int32, FRogueWaitingGrid> Grids;
 	TArray<FVector> WaitingPoints;
@@ -218,8 +210,6 @@ struct ROGUEMASSEXAMPLE_API FRogueStationFragment : public FMassFragment
 	GENERATED_BODY()
 	
 	int32 StationIndex = INDEX_NONE;
-	FVector WorldPosition = FVector::ZeroVector;
-	FVector WorldTrackPoint = FVector::ZeroVector;
 	FMassEntityHandle DockedTrain = FMassEntityHandle();
 };
 
@@ -230,15 +220,14 @@ struct ROGUEMASSEXAMPLE_API FRogueTrainStateFragment : public FMassFragment
 	
 	bool bIsStopping = false;
 	bool bAtStation = false;
-	bool bHasArrived = false;
 	ERogueStationTrainPhase StationTrainPhase = ERogueStationTrainPhase::NotStopped;
 	float HeadwaySpeedScale = 1.f;
 	float StationTimeRemaining = 0.f;  
 	float PrevAlpha = 0.f;  
-	FMassEntityHandle TargetStation = FMassEntityHandle();
 	int32 TargetStationIdx = INDEX_NONE;
-	int32 PreviousStationIndex = INDEX_NONE;
+	int32 PreviousStationIdx = INDEX_NONE;
 	float TrainLength = 0.f;
+	TArray<FMassEntityHandle> Carriages;
 };
 
 USTRUCT()
@@ -271,21 +260,12 @@ struct ROGUEMASSEXAMPLE_API FRoguePassengerFragment : public FMassFragment
 	FMassEntityHandle DestinationStation = FMassEntityHandle();
 	int32 WaitingPointIdx = INDEX_NONE;
 	int32 WaitingSlotIdx = INDEX_NONE;
-	int32 CarriageIndex = INDEX_NONE;
 	FMassEntityHandle VehicleHandle;
 	ERoguePassengerPhase Phase = ERoguePassengerPhase::ToStationWaitingPoint;
 	FVector Target = FVector::ZeroVector;
 	float AcceptanceRadius = 20.f;
 	float MaxSpeed = 200.f;
 	bool bWaiting = false;
-};
-
-USTRUCT()
-struct ROGUEMASSEXAMPLE_API FRoguePassengerHandleFragment : public FMassFragment
-{
-	GENERATED_BODY()
-	
-	FMassEntityHandle RidingTrain;
 };
 
 USTRUCT()
@@ -312,29 +292,24 @@ struct ROGUEMASSEXAMPLE_API FRogueTrackSharedFragment : public FMassSharedFragme
 		return StationEntities.IsValidIndex(Index) ? StationEntities[Index].Value : FMassEntityHandle();
 	}
 	float GetStationAlphaByIndex(const int32 Index) const;
+	FORCEINLINE FMassEntityHandle GetRandomStationEntity() const
+	{
+		if (StationEntities.Num() == 0) return FMassEntityHandle();
+		const int32 Idx = FMath::RandHelper(StationEntities.Num());
+		return StationEntities[Idx].Value;
+	}
+	FORCEINLINE int32 GetRandomDestinationStation(const FMassEntityHandle ExcludeStation) const
+	{
+		if (StationEntities.Num() < 2) return INDEX_NONE;
+		
+		int32 Idx = INDEX_NONE;
+		do
+		{
+			Idx = FMath::RandHelper(StationEntities.Num());
+		} while (StationEntities[Idx].Value == ExcludeStation);
+		return Idx;
+	}
 };
-
-USTRUCT()
-struct ROGUEMASSEXAMPLE_API FRogueTrainLineSharedFragment : public FMassSharedFragment
-{
-	GENERATED_BODY()
-	
-	float CruiseSpeed = 1200.f;
-	float ApproachSpeed = 500.f;
-	float StopRadius = 600.f;
-	float CarriageSpacingMeters = 8.f;
-};
-
-USTRUCT()
-struct ROGUEMASSEXAMPLE_API FRogueDemoLimitsSharedFragment : public FMassSharedFragment
-{
-	GENERATED_BODY()
-	
-	int32 MaxPassengersOverall = 500;
-	float MaxDwellTimeSeconds = 12.f;
-	int32 MaxPerCarriage = 20;
-};
-
 
 struct FRoguePlacedCar
 {

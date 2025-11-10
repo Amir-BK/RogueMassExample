@@ -66,7 +66,7 @@ void URogueTrainStationDetectProcessor::Execute(FMassEntityManager& EntityManage
 				// missed the stop; advance target and reset stopping flags
 				State.bIsStopping = false;
 				State.bAtStation = false;
-				State.PreviousStationIndex = State.TargetStationIdx;
+				State.PreviousStationIdx = State.TargetStationIdx;
 				State.TargetStationIdx = RogueTrainUtility::FindNextStation(*TrackSharedFragment.Spline, TrackSharedFragment.Platforms, TrackFollowFragment.Alpha);
 			}
 			
@@ -93,12 +93,12 @@ void URogueTrainStationDetectProcessor::Execute(FMassEntityManager& EntityManage
 					State.bAtStation = false;
 					State.StationTrainPhase = ERogueStationTrainPhase::NotStopped;
 					State.bIsStopping = false;
-					State.PreviousStationIndex = State.TargetStationIdx;
+					State.PreviousStationIdx = State.TargetStationIdx;
 					State.TargetStationIdx = (State.TargetStationIdx + 1) % TrackSharedFragment.StationEntities.Num();
 
 					// Inform station we are departing, free up dock
 					if (!TrackSharedFragment.StationEntities.IsValidIndex(State.TargetStationIdx)) continue;			
-					const FMassEntityHandle PreviousStationEntity = TrackSharedFragment.StationEntities[State.PreviousStationIndex].Value;
+					const FMassEntityHandle PreviousStationEntity = TrackSharedFragment.StationEntities[State.PreviousStationIdx].Value;
 					if (auto* PreviousStationFragment = EntityManager.GetFragmentDataPtr<FRogueStationFragment>(PreviousStationEntity))
 					{
 						PreviousStationFragment->DockedTrain = FMassEntityHandle();
