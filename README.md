@@ -81,9 +81,10 @@ The intent is to illustrate clean architecture and common patterns in **MASS** r
 
 This enables large-scale simulations with predictable memory access and parallel processing.
 
-
+### Understand MASS with Unreal Engine - Video - Link to YouTube
 [![Understand MASS with Unreal Engine](https://i9.ytimg.com/vi_webp/eJR82WyIl_U/maxresdefault.webp?v=68bf8389&sqp=CIyf1cgG&rs=AOn4CLCanCP1YJQHEIWRxkUPKFsHXsoYJg)](https://youtu.be/eJR82WyIl_U)
 
+### Mass Basics - Spawning Entities - Video - Link to YouTube
 [![Understand MASS with Unreal Engine](https://i9.ytimg.com/vi_webp/CnftkJcLYxs/sddefault.webp?v=6912e51a&sqp=CLih1cgG&rs=AOn4CLCtKiVaoLANcmj1qNMHPDqm67SNeg)](https://youtu.be/CnftkJcLYxs)
 
 ---
