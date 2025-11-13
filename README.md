@@ -81,6 +81,10 @@ The intent is to illustrate clean architecture and common patterns in **MASS** r
 
 This enables large-scale simulations with predictable memory access and parallel processing.
 
+https://youtu.be/eJR82WyIl_U
+
+https://youtu.be/CnftkJcLYxs
+
 ---
 
 ### Data Model
