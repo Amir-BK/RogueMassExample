@@ -1,9 +1,9 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "5.6",
+	"EngineAssociation": "5.7",
 	"VersionName": "1.0.0",
 	"Category": "Simulation",
-	"FriendlyName": "Rogue MASS Demo – Trains",
+	"FriendlyName": "Rogue MASS Demo - Trains",
 	"Description": "Spline-driven train + passenger MASS demo",
 	"Modules": [
 		{
@@ -20,10 +20,7 @@
 	"Plugins": [
 		{
 			"Name": "ModelingToolsEditorMode",
-			"Enabled": true,
-			"TargetAllowList": [
-				"Editor"
-			]
+			"Enabled": true
 		},
 		{
 			"Name": "MassEntity",

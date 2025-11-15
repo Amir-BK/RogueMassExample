@@ -18,14 +18,14 @@ USTRUCT() struct ROGUEMASSEXAMPLE_API FRoguePooledEntityTag : public FMassTag { 
 UENUM()
 enum class ERoguePassengerPhase : uint8
 {
-	EnteredWorld,						// 0) just spawned
-	ToStationWaitingPoint,				// 1) spawn -> nearest station waiting point
-	ToAssignedCarriage,					// 2) waiting -> carriage
-	RideOnTrain,						// 
-	UnloadAtStation,					// 
-	ToPostUnloadWaitingPoint,			// 4) after unload -> nearest waiting point (brief settle)
-	ToExitSpawn,						// 5) waiting -> nearest station spawn
-	Pool								// 6) ready to destroy/return to pool
+	EnteredWorld,                        // 0) just spawned
+	ToStationWaitingPoint,               // 1) spawn -> nearest station waiting point
+	ToAssignedCarriage,                  // 2) waiting -> carriage
+	RideOnTrain,                        // 
+	UnloadAtStation,                    // 
+	ToPostUnloadWaitingPoint,           // 4) after unload -> nearest waiting point (brief settle)
+	ToExitSpawn,                        // 5) waiting -> nearest station spawn
+	Pool                                // 6) ready to destroy/return to pool
 };
 
 UENUM()
@@ -163,7 +163,7 @@ struct ROGUEMASSEXAMPLE_API FRogueStationQueueFragment : public FMassFragment
 	TMap<int32, TArray<FRoguePassengerQueueEntry>> QueuesByWaitingPoint;
 	TMap<int32, FRogueWaitingGrid> Grids;
 	TArray<FVector> WaitingPoints;
-	TArray<FVector> SpawnPoints;	
+	TArray<FVector> SpawnPoints; 
 	FRogueStationWaitingGridConfig WaitingGridConfig;
 };
 
@@ -315,4 +315,26 @@ struct FRoguePlacedCar
 {
 	float Alpha;
 	FTransform Transform;
+};
+
+// --- MASS fragment traits for non-trivially copyable fragments ---
+// These fragments contain dynamic containers (TArray/TMap) and therefore are not trivially copyable.
+// Opt-in by acknowledging this via TMassFragmentTraits specializations.
+
+template<>
+struct TMassFragmentTraits<FRogueStationQueueFragment>
+{
+	static constexpr bool AuthorAcceptsItsNotTriviallyCopyable = true;
+};
+
+template<>
+struct TMassFragmentTraits<FRogueTrainStateFragment>
+{
+	static constexpr bool AuthorAcceptsItsNotTriviallyCopyable = true;
+};
+
+template<>
+struct TMassFragmentTraits<FRogueCarriageFragment>
+{
+	static constexpr bool AuthorAcceptsItsNotTriviallyCopyable = true;
 };
